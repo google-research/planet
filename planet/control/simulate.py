@@ -85,12 +85,7 @@ def collect_rollouts(
 
 def define_batch_env(env_ctor, num_agents, env_processes):
   with tf.variable_scope('environments'):
-    if env_processes:
-      envs = [
-          wrappers.ExternalProcess(env_ctor)
-          for _ in range(num_agents)]
-    else:
-      envs = [env_ctor() for _ in range(num_agents)]
+    envs = [env_ctor() for _ in range(num_agents)]
     env = batch_env.BatchEnv(envs, blocking=not env_processes)
     env = in_graph_batch_env.InGraphBatchEnv(env)
   return env
