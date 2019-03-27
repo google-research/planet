@@ -35,8 +35,8 @@ observing the next image.
 Find more information:
 
 - [Google AI Blog post][blog]
+- [Animated paper][website]
 - [Paper as PDF][paper]
-- [Paper as website][website]
 
 [blog]: https://ai.googleblog.com/2019/02/introducing-planet-deep-planning.html
 [paper]: https://danijar.com/publications/2019-planet.pdf
@@ -52,6 +52,9 @@ python3 -m planet.scripts.train  \
     --config default \
     --params '{tasks: [cheetah_run]}'
 ```
+
+The code prints `nan` as the score for iterations during which no summaries
+were computed.
 
 The available tasks are listed in `scripts/tasks.py`. The default parameters
 can be found in `scripts/configs.py`. To replicate the experiments in our
@@ -84,15 +87,15 @@ places to start when modifying the code:
 
 ## Dependencies
 
-The code was tested under Ubuntu 18.
+The code was tested under Ubuntu 18 and uses these packages:
 
-- dm_control (with `egl` or `osmesa` [rendering option][dmc-rendering])
+- tensorflow-gpu==1.13.1
+- tensorflow_probability==0.6.0
+- dm_control (`egl` [rendering option][dmc-rendering] recommended)
 - gym
-- ruamel.yaml
 - scikit-image
 - scipy
-- tensorflow-gpu==1.12.0
-- tensorflow_probability==0.5.0
+- ruamel.yaml
 
 [dmc-rendering]: https://github.com/deepmind/dm_control#rendering
 

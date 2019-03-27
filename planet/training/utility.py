@@ -251,7 +251,7 @@ def simulate_episodes(config, params, graph, name):
     with tf.variable_scope('simulate-{}'.format(index + 1)):
       summary, return_ = control.simulate(
           graph.step, env_ctor, params.task.max_length,
-          1, agent_config, name=name)
+          1, agent_config, config.isolate_envs, name=name)
     summaries.append(summary)
     returns.append(return_)
   summary = tf.summary.merge(summaries)

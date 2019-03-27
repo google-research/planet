@@ -79,7 +79,9 @@ def _model_components(config, params):
   model = params.get('model', 'rssm')
   if model == 'ssm':
     config.cell = functools.partial(
-        models.SSM, state_size, size, params.mean_only,
+        models.SSM, state_size, size,
+        params.get('future_rnn', False),
+        params.mean_only,
         params.get('min_stddev', 1e-1))
   elif model == 'rssm':
     config.cell = functools.partial(
@@ -97,6 +99,7 @@ def _tasks(config, params):
         'cartpole_balance', 'cartpole_swingup', 'finger_spin', 'cheetah_run',
         'cup_catch', 'walker_walk']
   tasks = [getattr(tasks_lib, name)(config, params) for name in tasks]
+  config.isolate_envs = params.get('isolate_envs', 'thread')
   def common_spaces_ctor(task, action_spaces):
     env = task.env_ctor()
     env = control.wrappers.SelectObservations(env, ['image'])

@@ -20,7 +20,6 @@ from __future__ import print_function
 import atexit
 import datetime
 import io
-import multiprocessing
 import os
 import sys
 import traceback
@@ -429,7 +428,7 @@ class CollectGymDataset(object):
       with tf.gfile.Open(filename, 'w') as ff:
         ff.write(file_.read())
     name = os.path.splitext(os.path.basename(filename))[0]
-    tf.logging.info('Recorded episode {}.'.format(name))
+    print('Recorded episode {}.'.format(name))
 
 
 class ConvertTo32Bit(object):
@@ -467,7 +466,7 @@ class ConvertTo32Bit(object):
     return np.array(reward, dtype=np.float32)
 
 
-class ExternalProcess(object):
+class Async(object):
   """Step environment in a separate process for lock free paralellism."""
 
   # Message types for communication via the pipe.
@@ -477,7 +476,7 @@ class ExternalProcess(object):
   _EXCEPTION = 4
   _CLOSE = 5
 
-  def __init__(self, constructor):
+  def __init__(self, constructor, strategy='thread'):
     """Step environment in a separate process for lock free parallelism.
 
     The environment will be created in the external process by calling the
@@ -492,9 +491,14 @@ class ExternalProcess(object):
       observation_space: The cached observation space of the environment.
       action_space: The cached action space of the environment.
     """
-    self._conn, conn = multiprocessing.Pipe()
-    self._process = multiprocessing.Process(
-        target=self._worker, args=(constructor, conn))
+    if strategy == 'thread':
+      import multiprocessing.dummy as mp
+    elif strategy == 'process':
+      import multiprocessing as mp
+    else:
+      raise NotImplementedError(strategy)
+    self._conn, conn = mp.Pipe()
+    self._process = mp.Process(target=self._worker, args=(constructor, conn))
     atexit.register(self.close)
     self._process.start()
     self._observ_space = None
@@ -595,7 +599,10 @@ class ExternalProcess(object):
     Returns:
       Payload object of the message.
     """
-    message, payload = self._conn.recv()
+    try:
+      message, payload = self._conn.recv()
+    except ConnectionResetError:
+      raise RuntimeError('Environment worker crashed.')
     # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
       stacktrace = payload
@@ -640,6 +647,6 @@ class ExternalProcess(object):
         raise KeyError('Received message of unknown type {}'.format(message))
     except Exception:
       stacktrace = ''.join(traceback.format_exception(*sys.exc_info()))
-      tf.logging.error('Error in environment process: {}'.format(stacktrace))
+      print('Error in environment process: {}'.format(stacktrace))
       conn.send((self._EXCEPTION, stacktrace))
     conn.close()

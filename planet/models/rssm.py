@@ -45,19 +45,19 @@ class RSSM(base.Base):
   """
 
   def __init__(
-      self, state_size, belief_size, embed_size, mean_only=False,
-      min_stddev=1e-5):
+      self, state_size, belief_size, embed_size,
+      future_rnn=False, mean_only=False, min_stddev=1e-5):
     self._state_size = state_size
     self._belief_size = belief_size
     self._embed_size = embed_size
-    self._transition_tpl = tf.make_template('transition', self._transition)
-    self._posterior_tpl = tf.make_template('posterior', self._posterior)
+    self._future_rnn = future_rnn
     self._cell = tf.contrib.rnn.GRUBlockCell(self._belief_size)
     self._kwargs = dict(units=self._embed_size, activation=tf.nn.relu)
     self._mean_only = mean_only
     self._min_stddev = min_stddev
     super(RSSM, self).__init__(
-        self.state_size, self._transition_tpl, self._posterior_tpl)
+        tf.make_template('transition', self._transition),
+        tf.make_template('posterior', self._posterior))
 
   @property
   def state_size(self):
@@ -93,6 +93,8 @@ class RSSM(base.Base):
     inputs = tf.concat([prev_state['sample'], prev_action], -1)
     hidden = tf.layers.dense(inputs, **self._kwargs)
     belief, rnn_state = self._cell(hidden, prev_state['rnn_state'])
+    if self._future_rnn:
+      hidden = belief
     hidden = tf.layers.dense(hidden, **self._kwargs)
     mean = tf.layers.dense(hidden, self._state_size, None)
     stddev = tf.layers.dense(hidden, self._state_size, tf.nn.softplus)

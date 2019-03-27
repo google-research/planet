@@ -18,6 +18,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import functools
+
 import tensorflow as tf
 
 from planet import tools
@@ -30,7 +32,7 @@ from planet.tools import streaming_mean
 
 def simulate(
     step, env_ctor, duration, num_agents, agent_config,
-    env_processes=False, name='simulate'):
+    isolate_envs=False, name='simulate'):
   summaries = []
   with tf.variable_scope(name):
     return_, image, action, reward = collect_rollouts(
@@ -39,7 +41,7 @@ def simulate(
         duration=duration,
         num_agents=num_agents,
         agent_config=agent_config,
-        env_processes=env_processes)
+        isolate_envs=isolate_envs)
     return_mean = tf.reduce_mean(return_)
     summaries.append(tf.summary.histogram('return_hist', return_))
     summaries.append(tf.summary.scalar('return', return_mean))
@@ -52,8 +54,8 @@ def simulate(
 
 
 def collect_rollouts(
-    step, env_ctor, duration, num_agents, agent_config, env_processes):
-  batch_env = define_batch_env(env_ctor, num_agents, env_processes)
+    step, env_ctor, duration, num_agents, agent_config, isolate_envs):
+  batch_env = define_batch_env(env_ctor, num_agents, isolate_envs)
   agent = mpc_agent.MPCAgent(batch_env, step, False, False, agent_config)
 
   def simulate_fn(unused_last, step):
@@ -83,15 +85,21 @@ def collect_rollouts(
   return score, image, action, reward
 
 
-def define_batch_env(env_ctor, num_agents, env_processes):
+def define_batch_env(env_ctor, num_agents, isolate_envs):
   with tf.variable_scope('environments'):
-    if env_processes:
-      envs = [
-          wrappers.ExternalProcess(env_ctor)
-          for _ in range(num_agents)]
+    if isolate_envs == 'none':
+      factory = lambda ctor: ctor()
+      blocking = True
+    elif isolate_envs == 'thread':
+      factory = functools.partial(wrappers.Async, strategy='thread')
+      blocking = False
+    elif isolate_envs == 'process':
+      factory = functools.partial(wrappers.Async, strategy='process')
+      blocking = False
     else:
-      envs = [env_ctor() for _ in range(num_agents)]
-    env = batch_env.BatchEnv(envs, blocking=not env_processes)
+      raise NotImplementedError(isolate_envs)
+    envs = [factory(env_ctor) for _ in range(num_agents)]
+    env = batch_env.BatchEnv(envs, blocking)
     env = in_graph_batch_env.InGraphBatchEnv(env)
   return env
 

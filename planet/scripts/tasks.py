@@ -98,12 +98,9 @@ def humanoid_walk(config, params):
 
 def _dm_control_env(action_repeat, max_length, domain, task):
   from dm_control import suite
-  def env_ctor():
-    env = control.wrappers.DeepMindWrapper(suite.load(domain, task), (64, 64))
-    env = control.wrappers.ActionRepeat(env, action_repeat)
-    env = control.wrappers.LimitDuration(env, max_length)
-    env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
-    env = control.wrappers.ConvertTo32Bit(env)
-    return env
-  env = control.wrappers.ExternalProcess(env_ctor)
+  env = control.wrappers.DeepMindWrapper(suite.load(domain, task), (64, 64))
+  env = control.wrappers.ActionRepeat(env, action_repeat)
+  env = control.wrappers.LimitDuration(env, max_length)
+  env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
+  env = control.wrappers.ConvertTo32Bit(env)
   return env

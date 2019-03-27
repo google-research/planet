@@ -42,12 +42,11 @@ class SSM(base.Base):
   def __init__(self, state_size, embed_size, mean_only=False, min_stddev=1e-5):
     self._state_size = state_size
     self._embed_size = embed_size
-    self._transition_tpl = tf.make_template('transition', self._transition)
-    self._posterior_tpl = tf.make_template('posterior', self._posterior)
     self._mean_only = mean_only
     self._min_stddev = min_stddev
     super(SSM, self).__init__(
-        self.state_size, self._transition_tpl, self._posterior_tpl)
+        tf.make_template('transition', self._transition),
+        tf.make_template('posterior', self._posterior))
     self._kwargs = dict(units=self._embed_size, activation=tf.nn.relu)
 
   @property

@@ -23,16 +23,23 @@ from planet import tools
 
 class Base(tf.nn.rnn_cell.RNNCell):
 
-  def __init__(self, state_size, transition_tpl, posterior_tpl, reuse=None):
+  def __init__(self, transition_tpl, posterior_tpl, reuse=None):
     super(Base, self).__init__(_reuse=reuse)
-    self.__state_size = state_size
-    self.__posterior_tpl = posterior_tpl
-    self.__transition_tpl = transition_tpl
-    self.__debug = False
+    self._posterior_tpl = posterior_tpl
+    self._transition_tpl = transition_tpl
+    self._debug = False
 
   @property
   def state_size(self):
-    return self.__state_size
+    raise NotImplementedError
+
+  @property
+  def updates(self):
+    return []
+
+  @property
+  def losses(self):
+    return []
 
   @property
   def output_size(self):
@@ -45,14 +52,14 @@ class Base(tf.nn.rnn_cell.RNNCell):
 
   def call(self, inputs, prev_state):
     obs, prev_action, use_obs = inputs
-    if self.__debug:
+    if self._debug:
       with tf.control_dependencies([tf.assert_equal(use_obs, use_obs[0, 0])]):
         use_obs = tf.identity(use_obs)
     use_obs = use_obs[0, 0]
     zero_obs = tools.nested.map(tf.zeros_like, obs)
-    prior = self.__transition_tpl(prev_state, prev_action, zero_obs)
+    prior = self._transition_tpl(prev_state, prev_action, zero_obs)
     posterior = tf.cond(
         use_obs,
-        lambda: self.__posterior_tpl(prev_state, prev_action, obs),
+        lambda: self._posterior_tpl(prev_state, prev_action, obs),
         lambda: prior)
     return (prior, posterior), posterior
