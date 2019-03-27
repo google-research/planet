@@ -45,8 +45,8 @@ class RSSM(base.Base):
   """
 
   def __init__(
-      self, state_size, belief_size, embed_size, mean_only=False,
-      min_stddev=1e-5):
+          self, state_size, belief_size, embed_size, mean_only=False,
+          min_stddev=1e-5):
     self._state_size = state_size
     self._belief_size = belief_size
     self._embed_size = embed_size

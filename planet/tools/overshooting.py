@@ -26,7 +26,7 @@ from planet.tools import shape
 
 
 def overshooting(
-    cell, target, embedded, prev_action, length, amount, ignore_input=False):
+        cell, target, embedded, prev_action, length, amount, ignore_input=False):
   """Perform open loop rollouts from the posteriors at every step.
 
   First, we apply the encoder to embed raw inputs and apply the model to obtain

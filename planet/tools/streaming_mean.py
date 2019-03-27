@@ -62,10 +62,11 @@ class StreamingMean(object):
     if str(value.shape[1:]) != str(self._sum.shape):
       message = 'Value shape ({}) does not fit tracked tensor ({}).'
       raise ValueError(message.format(value.shape[1:], self._sum.shape))
+
     def assign():
       return tf.group(
-        self._sum.assign_add(tf.reduce_sum(value, 0)),
-        self._count.assign_add(tf.shape(value)[0]))
+          self._sum.assign_add(tf.reduce_sum(value, 0)),
+          self._count.assign_add(tf.shape(value)[0]))
     not_empty = tf.cast(tf.reduce_prod(tf.shape(value)), tf.bool)
     return tf.cond(not_empty, assign, tf.no_op)
 

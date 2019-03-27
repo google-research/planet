@@ -24,7 +24,7 @@ from planet import tools
 
 
 def feed_forward(
-    state, data_shape, num_layers=2, activation=None, cut_gradient=False):
+        state, data_shape, num_layers=2, activation=None, cut_gradient=False):
   """Create a model returning unnormalized MSE distribution."""
   hidden = state
   if cut_gradient:

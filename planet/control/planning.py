@@ -24,9 +24,9 @@ from planet import tools
 
 
 def cross_entropy_method(
-    cell, objective_fn, state, obs_shape, action_shape, horizon,
-    amount=1000, topk=100, iterations=10, discount=0.99,
-    min_action=-1, max_action=1):
+        cell, objective_fn, state, obs_shape, action_shape, horizon,
+        amount=1000, topk=100, iterations=10, discount=0.99,
+        min_action=-1, max_action=1):
   obs_shape, action_shape = tuple(obs_shape), tuple(action_shape)
   original_batch = tools.shape(tools.nested.flatten(state)[0])[0]
   initial_state = tools.nested.map(lambda tensor: tf.tile(

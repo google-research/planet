@@ -181,8 +181,8 @@ def train(model_fn, datasets, logdir, config):
 
 
 def compute_losses(
-    loss_scales, cell, heads, step, target, prior, posterior, mask,
-    free_nats=None, debug=False):
+        loss_scales, cell, heads, step, target, prior, posterior, mask,
+        free_nats=None, debug=False):
   features = cell.features_from_state(posterior)
   losses = {}
   for key, scale in loss_scales.items():

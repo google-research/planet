@@ -31,8 +31,8 @@ from planet.tools import chunk_sequence
 
 
 def numpy_episodes(
-    train_dir, test_dir, shape, loader, preprocess_fn=None, scan_every=10,
-    num_chunks=None, **kwargs):
+        train_dir, test_dir, shape, loader, preprocess_fn=None, scan_every=10,
+        num_chunks=None, **kwargs):
   """Read sequences stored as compressed Numpy files as a TensorFlow dataset.
 
   Args:
@@ -61,6 +61,7 @@ def numpy_episodes(
       functools.partial(loader, test_dir, shape[0], **kwargs), dtypes, shapes)
   chunking = lambda x: tf.data.Dataset.from_tensor_slices(
       chunk_sequence(x, shape[1], True, num_chunks))
+
   def sequence_preprocess_fn(sequence):
     if preprocess_fn:
       with tf.device('/cpu:0'):
@@ -94,7 +95,7 @@ def _read_spec(directory, return_length=False, numpy_types=False, **kwargs):
 
 
 def _read_episodes_scan(
-    directory, batch_size, every, max_episodes=None, **kwargs):
+        directory, batch_size, every, max_episodes=None, **kwargs):
   recent = {}
   cache = {}
   while True:
@@ -138,7 +139,7 @@ def _read_episodes_reload(directory, batch_size, max_episodes=None, **kwargs):
 
 
 def _read_episodes_dummy(
-    directory, batch_size, max_episodes=None, **kwargs):
+        directory, batch_size, max_episodes=None, **kwargs):
   random = np.random.RandomState(seed=0)
   dtypes, shapes, length = _read_spec(directory, True, True, **kwargs)
   while True:
@@ -155,8 +156,8 @@ def _read_episodes_dummy(
 
 
 def _read_episode(
-    filename, resize=None, sub_sample=None, max_length=None,
-    action_noise=None):
+        filename, resize=None, sub_sample=None, max_length=None,
+        action_noise=None):
   with tf.gfile.Open(filename, 'rb') as file_:
     episode = np.load(file_)
   episode = {key: _convert_type(episode[key]) for key in episode.keys()}

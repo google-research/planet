@@ -88,7 +88,7 @@ def process(logdir, config, args):
       max_episodes=config.max_episodes,
       action_noise=config.fixed_action_noise)
   for score in training.utility.train(
-      training.define_model, dataset, logdir, config):
+          training.define_model, dataset, logdir, config):
     yield score
 
 

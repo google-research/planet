@@ -47,8 +47,8 @@ class Experiment(object):
   """Experiment class."""
 
   def __init__(
-      self, basedir, process_fn, start_fn=None, resume_fn=None,
-      num_runs=None, worker_name=None, ping_every=30, resume_runs=True):
+          self, basedir, process_fn, start_fn=None, resume_fn=None,
+          num_runs=None, worker_name=None, ping_every=30, resume_runs=True):
     """Coordinate experiments with multiple runs processed by multiple workers.
 
     The experiment can be iterated over to yield runs. Runs can be iterated
@@ -139,8 +139,8 @@ class Experiment(object):
 class Run(object):
 
   def __init__(
-      self, logdir, process_fn, start_fn, resume_fn, worker_name,
-      ping_every=30, ping_stale=60, reuse_if_exists=True):
+          self, logdir, process_fn, start_fn, resume_fn, worker_name,
+          ping_every=30, ping_stale=60, reuse_if_exists=True):
     """Represents a unit of work associated with a log directory.
 
     This class guarantees that in a distributed setting, for every log
@@ -333,8 +333,8 @@ class Run(object):
       self._store_ping(self._logdir)
       while self._running[0]:
         if time.time() >= last_write + self._ping_every:
-            last_write = time.time()
-            self._store_ping(self._logdir)
+          last_write = time.time()
+          self._store_ping(self._logdir)
         # Only wait short times to quickly react to abort.
         time.sleep(0.01)
     except WorkerConflict:

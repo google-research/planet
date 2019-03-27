@@ -117,9 +117,9 @@ class InGraphBatchEnv(object):
     reward = tf.zeros_like(indices, tf.float32)
     done = tf.zeros_like(indices, tf.int32)
     with tf.control_dependencies([
-        tf.scatter_update(self._observ, indices, observ),
-        tf.scatter_update(self._reward, indices, reward),
-        tf.scatter_update(self._done, indices, tf.to_int32(done))]):
+            tf.scatter_update(self._observ, indices, observ),
+            tf.scatter_update(self._reward, indices, reward),
+            tf.scatter_update(self._done, indices, tf.to_int32(done))]):
       return tf.identity(observ)
 
   @property

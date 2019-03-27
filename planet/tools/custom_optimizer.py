@@ -25,8 +25,8 @@ from planet.tools import filter_variables
 class CustomOptimizer(object):
 
   def __init__(
-      self, optimizer_cls, step, should_summarize, learning_rate,
-      include=None, exclude=None, clipping=None, schedule=None):
+          self, optimizer_cls, step, should_summarize, learning_rate,
+          include=None, exclude=None, clipping=None, schedule=None):
     if schedule:
       learning_rate *= schedule(step)
     self._step = step

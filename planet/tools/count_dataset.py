@@ -28,6 +28,7 @@ def count_dataset(directory, key='reward'):
     message = "Data set directory '{}' does not exist."
     raise ValueError(message.format(directory))
   pattern = os.path.join(directory, '*.npz')
+
   def func():
     filenames = tf.gfile.Glob(pattern)
     episodes = len(filenames)

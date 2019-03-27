@@ -91,8 +91,8 @@ class Trainer(object):
     return self._reset
 
   def add_saver(
-      self, include=r'.*', exclude=r'.^', logdir=None, load=True, save=True,
-      checkpoint=None):
+          self, include=r'.*', exclude=r'.^', logdir=None, load=True, save=True,
+          checkpoint=None):
     """Add a saver to save or load variables.
 
     Args:
@@ -117,9 +117,9 @@ class Trainer(object):
       self._checkpoints.append(checkpoint)
 
   def add_phase(
-      self, name, steps, score, summary, batch_size=1,
-      report_every=None, log_every=None, checkpoint_every=None,
-      restore_every=None, feed=None):
+          self, name, steps, score, summary, batch_size=1,
+          report_every=None, log_every=None, checkpoint_every=None,
+          restore_every=None, feed=None):
     """Add a phase to the trainer protocol.
 
     The score tensor can either be a scalar or vector, to support single and
@@ -200,11 +200,11 @@ class Trainer(object):
             phase_step, phase.batch_size, phase.report_every)
         summary, mean_score, global_step = sess.run(phase.op, phase.feed)
         if self._is_every_steps(
-            phase_step, phase.batch_size, phase.checkpoint_every):
+                phase_step, phase.batch_size, phase.checkpoint_every):
           for saver in self._savers:
             self._store_checkpoint(sess, saver, global_step)
         if self._is_every_steps(
-            phase_step, phase.batch_size, phase.report_every):
+                phase_step, phase.batch_size, phase.report_every):
           tf.logging.info('Score {}.'.format(mean_score))
           yield mean_score
         if summary and phase.writer:
@@ -214,7 +214,7 @@ class Trainer(object):
           summary_step = epoch * longest_phase + steps_in
           phase.writer.add_summary(summary, summary_step)
         if self._is_every_steps(
-            phase_step, phase.batch_size, phase.restore_every):
+                phase_step, phase.batch_size, phase.restore_every):
           self._initialize_variables(
               sess, self._loaders, self._logdirs, self._checkpoints)
 
@@ -314,7 +314,7 @@ class Trainer(object):
         tf.global_variables_initializer()))
     assert len(savers) == len(logdirs) == len(checkpoints)
     for i, (saver, logdir, checkpoint) in enumerate(
-        zip(savers, logdirs, checkpoints)):
+            zip(savers, logdirs, checkpoints)):
       logdir = os.path.expanduser(logdir)
       state = tf.train.get_checkpoint_state(logdir)
       if checkpoint:

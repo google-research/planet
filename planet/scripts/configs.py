@@ -97,6 +97,7 @@ def _tasks(config, params):
         'cartpole_balance', 'cartpole_swingup', 'finger_spin', 'cheetah_run',
         'cup_catch', 'walker_walk']
   tasks = [getattr(tasks_lib, name)(config, params) for name in tasks]
+
   def common_spaces_ctor(task, action_spaces):
     env = task.env_ctor()
     env = control.wrappers.SelectObservations(env, ['image'])

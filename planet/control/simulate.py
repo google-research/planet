@@ -29,8 +29,8 @@ from planet.tools import streaming_mean
 
 
 def simulate(
-    step, env_ctor, duration, num_agents, agent_config,
-    env_processes=False, name='simulate'):
+        step, env_ctor, duration, num_agents, agent_config,
+        env_processes=False, name='simulate'):
   summaries = []
   with tf.variable_scope(name):
     return_, image, action, reward = collect_rollouts(
@@ -52,7 +52,7 @@ def simulate(
 
 
 def collect_rollouts(
-    step, env_ctor, duration, num_agents, agent_config, env_processes):
+        step, env_ctor, duration, num_agents, agent_config, env_processes):
   batch_env = define_batch_env(env_ctor, num_agents, env_processes)
   agent = mpc_agent.MPCAgent(batch_env, step, False, False, agent_config)
 
