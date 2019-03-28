@@ -225,7 +225,7 @@ def apply_optimizers(loss, step, should_summarize, optimizers):
     return tf.cond(should_summarize, lambda: tf.summary.merge(summaries), str)
 
 
-def simulate_episodes(config, params, graph, name):
+def simulate_episodes(config, params, graph, expensive_summaries, name):
   def env_ctor():
     env = params.task.env_ctor()
     if params.save_episode_dir:
@@ -246,7 +246,8 @@ def simulate_episodes(config, params, graph, name):
   agent_config.update(params)
   summary, return_ = control.simulate(
       graph.step, env_ctor, params.task.max_length,
-      params.num_agents, agent_config, config.isolate_envs, name=name)
+      params.num_agents, agent_config, config.isolate_envs,
+      expensive_summaries, name=name)
   return summary, return_
 
 

@@ -102,7 +102,7 @@ def define_summaries(graph, config):
       # do one of them.
       sim_summary, sim_return = tf.cond(
           tf.equal(graph.phase, 'test'),
-          lambda: utility.simulate_episodes(config, params, graph, name),
+          lambda: utility.simulate_episodes(config, params, graph, True, name),
           lambda: ('', 0.0),
           name='should_simulate_' + params.task.name)
       summaries.append(sim_summary)

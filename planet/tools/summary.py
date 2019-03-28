@@ -21,8 +21,10 @@ import numpy as np
 import tensorflow as tf
 
 from planet.tools import count_dataset
+from planet.tools import gif_summary
 from planet.tools import image_strip_summary
 from planet.tools import mask as masklib
+from planet.tools import shape as shapelib
 
 
 def plot_summary(titles, lines, labels, name):
@@ -128,14 +130,23 @@ def image_summaries(dist, target, name='image', max_batch=10):
   with tf.variable_scope(name):
     empty_frame = 0 * target[:max_batch, :1]
     image = dist.mode()[:max_batch]
+    target = target[:max_batch]
     change = tf.concat([empty_frame, image[:, 1:] - image[:, :-1]], 1)
-    error = image[:max_batch] - target[:max_batch]
+    error = image - target
     summaries.append(image_strip_summary.image_strip_summary(
         'prediction', image))
     summaries.append(image_strip_summary.image_strip_summary(
         'change', (change + 1) / 2))
     summaries.append(image_strip_summary.image_strip_summary(
         'error', (error + 1) / 2))
+    # Concat prediction and target vertically.
+    frames = tf.concat([target, image], 2)
+    # Stack batch entries horizontally.
+    frames = tf.transpose(frames, [1, 2, 0, 3, 4])
+    s = shapelib.shape(frames)
+    frames = tf.reshape(frames, [s[0], s[1], s[2] * s[3], s[4]])
+    summaries.append(gif_summary.gif_summary(
+        'animation', frames[None], max_outputs=1, fps=20))
   return summaries
 
 

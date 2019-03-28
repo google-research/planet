@@ -27,6 +27,7 @@ from .count_dataset import count_dataset
 from .count_weights import count_weights
 from .custom_optimizer import CustomOptimizer
 from .filter_variables import filter_variables
+from .gif_summary import gif_summary
 from .image_strip_summary import image_strip_summary
 from .mask import mask
 from .mse_distribution import MSEDistribution

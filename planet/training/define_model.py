@@ -128,7 +128,8 @@ def define_model(data, trainer, config):
       collect_summary, _ = tf.cond(
           should_collect,
           functools.partial(
-              utility.simulate_episodes, config, params, graph, name),
+              utility.simulate_episodes, config, params, graph,
+              expensive_summaries=False, name=name),
           lambda: (tf.constant(''), tf.constant(0.0)),
           name='should_collect_' + params.task.name)
       should_collects.append(should_collect)
@@ -143,9 +144,8 @@ def define_model(data, trainer, config):
         lambda: (tf.constant(''), tf.zeros((0,), tf.float32)),
         name='summaries')
   with tf.device('/cpu:0'):
-    summaries = tf.summary.merge([summaries, train_summary])
-    # summaries = tf.summary.merge(
-    #     [summaries, train_summary] + collect_summaries)
+    summaries = tf.summary.merge(
+        [summaries, train_summary] + collect_summaries)
     zs_entropy = (tf.reduce_sum(tools.mask(
         cell.dist_from_state(zs_posterior, zs_mask).entropy(), zs_mask)) /
         tf.reduce_sum(tf.to_float(zs_mask)))

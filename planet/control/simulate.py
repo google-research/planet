@@ -32,7 +32,7 @@ from planet.tools import streaming_mean
 
 def simulate(
     step, env_ctor, duration, num_agents, agent_config,
-    isolate_envs=False, name='simulate'):
+    isolate_envs='none', expensive_summaries=False, name='simulate'):
   summaries = []
   with tf.variable_scope(name):
     return_, image, action, reward = collect_rollouts(
@@ -43,12 +43,15 @@ def simulate(
         agent_config=agent_config,
         isolate_envs=isolate_envs)
     return_mean = tf.reduce_mean(return_)
-    summaries.append(tf.summary.histogram('return_hist', return_))
     summaries.append(tf.summary.scalar('return', return_mean))
-    summaries.append(tf.summary.histogram('reward_hist', reward))
-    summaries.append(tf.summary.histogram('action_hist', action))
-    summaries.append(tools.image_strip_summary(
-        'image', image, max_length=duration))
+    if expensive_summaries:
+      summaries.append(tf.summary.histogram('return_hist', return_))
+      summaries.append(tf.summary.histogram('reward_hist', reward))
+      summaries.append(tf.summary.histogram('action_hist', action))
+      summaries.append(tools.image_strip_summary(
+          'image', image, max_length=duration))
+      summaries.append(tools.gif_summary(
+          'animation', image, max_outputs=1, fps=20))
   summary = tf.summary.merge(summaries)
   return summary, return_mean
 
