@@ -72,11 +72,7 @@ list of tasks:
 
 ## Modifications
 
-During development, you can set `--config debug` to reduce the episode length,
-batch size, and collect data more freqnently. This helps to quickly reach all
-parts of the code. You can use `--num_runs 1000 --resume_runs False` to start a
-run in a new sub directory every time to execute the script. These are good
-places to start when modifying the code:
+These are good places to start when modifying the code:
 
 | Directory | Description |
 | :-------- | :---------- |
@@ -84,6 +80,17 @@ places to start when modifying the code:
 | `scripts/tasks.py` | Add or modify environments. |
 | `models` | Add or modify latent transition models. |
 | `networks` | Add or modify encoder and  decoder networks. |
+
+Tips for development:
+
+- You can set `--config debug` to reduce the episode length, batch size, and
+  collect data more freqnently. This helps to quickly reach all parts of the
+  code.
+- You can use `--num_runs 1000 --resume_runs False` to automatically start new
+  runs in sub directories of the logdir every time to execute the script.
+- Environments live in separate processes by default. Some environments work
+  better when separated into threads instead by specifying `--params
+  '{isolate_envs: thread}'`.
 
 ## Dependencies
 

@@ -96,11 +96,48 @@ def humanoid_walk(config, params):
   return Task('humanoid_walk', env_ctor, max_length, state_components)
 
 
+def gym_cheetah(config, params):
+  action_repeat = params.get('action_repeat', 2)
+  max_length = 1000 // action_repeat
+  state_components = ['reward', 'state']
+  env_ctor = functools.partial(
+      _gym_env, action_repeat, config.batch_shape[1], max_length,
+      'HalfCheetah-v3')
+  return Task('gym_cheetah', env_ctor, max_length, state_components)
+
+
+def gym_racecar(config, params):
+  action_repeat = params.get('action_repeat', 2)
+  max_length = 1000 // action_repeat
+  state_components = ['reward']
+  env_ctor = functools.partial(
+      _gym_env, action_repeat, config.batch_shape[1], max_length,
+      'CarRacing-v0', obs_is_image=True)
+  return Task('gym_racing', env_ctor, max_length, state_components)
+
+
 def _dm_control_env(action_repeat, max_length, domain, task):
   from dm_control import suite
   env = control.wrappers.DeepMindWrapper(suite.load(domain, task), (64, 64))
   env = control.wrappers.ActionRepeat(env, action_repeat)
-  env = control.wrappers.LimitDuration(env, max_length)
+  env = control.wrappers.MaximumDuration(env, max_length)
+  env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
+  env = control.wrappers.ConvertTo32Bit(env)
+  return env
+
+
+def _gym_env(action_repeat, min_length, max_length, name, obs_is_image=False):
+  import gym
+  env = gym.make(name)
+  env = control.wrappers.ActionRepeat(env, action_repeat)
+  env = control.wrappers.NormalizeActions(env)
+  env = control.wrappers.MinimumDuration(env, min_length)
+  env = control.wrappers.MaximumDuration(env, max_length)
+  if obs_is_image:
+    env = control.wrappers.ObservationDict(env, 'image')
+    env = control.wrappers.ObservationToRender(env)
+  else:
+    env = control.wrappers.ObservationDict(env, 'state')
   env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
   env = control.wrappers.ConvertTo32Bit(env)
   return env

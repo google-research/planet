@@ -28,7 +28,7 @@ class PlanetTest(tf.test.TestCase):
 
   def test_default(self):
     args = tools.AttrDict(
-        logdir=self.create_tempdir(),
+        logdir=self.get_temp_dir(),
         num_runs=1,
         config='debug',
         params=tools.AttrDict(
@@ -43,7 +43,7 @@ class PlanetTest(tf.test.TestCase):
 
   def test_no_overshooting(self):
     args = tools.AttrDict(
-        logdir=self.create_tempdir(),
+        logdir=self.get_temp_dir(),
         num_runs=1,
         config='debug',
         params=tools.AttrDict(
@@ -56,3 +56,7 @@ class PlanetTest(tf.test.TestCase):
         ping_every=0,
         resume_runs=False)
     tf.app.run(lambda _: train.main(args), [sys.argv[0]])
+
+
+if __name__ == '__main__':
+  tf.test.main()

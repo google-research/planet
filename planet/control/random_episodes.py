@@ -31,4 +31,8 @@ def random_episodes(env_ctor, num_episodes, output_dir=None):
       action = policy(env, obs)
       obs, _, done, info = env.step(action)
     episodes.append(info['episode'])
+  try:
+    env.close()
+  except AttributeError:
+    pass
   return episodes

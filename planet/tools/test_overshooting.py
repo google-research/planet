@@ -32,10 +32,9 @@ class _MockCell(models.Base):
 
   def __init__(self, obs_size):
     self._obs_size = obs_size
-    transition_tpl = tf.make_template('transition', self._transition)
-    posterior_tpl = tf.make_template('posterior', self._posterior)
     super(_MockCell, self).__init__(
-        self.state_size, transition_tpl, posterior_tpl)
+        tf.make_template('transition', self._transition),
+        tf.make_template('posterior', self._posterior))
 
   @property
   def state_size(self):

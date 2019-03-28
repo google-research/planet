@@ -229,6 +229,6 @@ def _define_simulation(task, config, params, horizon, batch_size):
       horizon=horizon)
   return tools.AttrDict(
       task=task,
-      batch_size=batch_size,
+      num_agents=batch_size,
       planner=planner,
       objective=objective)

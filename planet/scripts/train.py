@@ -55,26 +55,13 @@ from planet import training
 from planet.scripts import configs
 
 
-def start(logdir, args):
+def process(logdir, args):
   with args.params.unlocked:
     args.params.logdir = logdir
   config = tools.AttrDict()
   with config.unlocked:
     config = getattr(configs, args.config)(config, args.params)
   training.utility.collect_initial_episodes(config)
-  return config
-
-
-def resume(logdir, args):
-  with args.params.unlocked:
-    args.params.logdir = logdir
-  config = tools.AttrDict()
-  with config.unlocked:
-    config = getattr(configs, args.config)(config, args.params)
-  return config
-
-
-def process(logdir, config, args):
   tf.reset_default_graph()
   dataset = tools.numpy_episodes(
       config.train_dir, config.test_dir, config.batch_shape,
@@ -97,8 +84,6 @@ def main(args):
   experiment = training.Experiment(
       args.logdir,
       process_fn=functools.partial(process, args=args),
-      start_fn=functools.partial(start, args=args),
-      resume_fn=functools.partial(resume, args=args),
       num_runs=args.num_runs,
       ping_every=args.ping_every,
       resume_runs=args.resume_runs)
