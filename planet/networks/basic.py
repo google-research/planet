@@ -33,6 +33,6 @@ def feed_forward(
     hidden = tf.layers.dense(hidden, 100, tf.nn.relu)
   mean = tf.layers.dense(hidden, int(np.prod(data_shape)), activation)
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
-  dist = tools.MSEDistribution(mean)
+  dist = tfd.Normal(mean, 1.0)
   dist = tfd.Independent(dist, len(data_shape))
   return dist
