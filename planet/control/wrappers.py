@@ -249,10 +249,8 @@ class NormalizeActions(object):
     self._env = env
     low, high = env.action_space.low, env.action_space.high
     self._enabled = np.logical_and(np.isfinite(low), np.isfinite(high))
-    self._scale = np.where(
-        self._enabled, (high - low) / 2, np.ones_like(low))
-    self._offset = np.where(
-        self._enabled, low + (high - low) / 2, np.zeros_like(low))
+    self._low = np.where(self._enabled, low, -np.ones_like(low))
+    self._high = np.where(self._enabled, high, np.ones_like(low))
 
   def __getattr__(self, name):
     return getattr(self._env, name)
@@ -265,7 +263,7 @@ class NormalizeActions(object):
     return gym.spaces.Box(low, high)
 
   def step(self, action):
-    action = (action - self._offset) / self._scale
+    action = (action + 1) / 2 * (self._high - self._low) + self._low
     return self._env.step(action)
 
 

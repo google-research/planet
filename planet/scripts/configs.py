@@ -80,12 +80,13 @@ def _model_components(config, params):
   if model == 'ssm':
     config.cell = functools.partial(
         models.SSM, state_size, size,
-        params.get('future_rnn', False),
-        params.mean_only,
+        params.get('mean_only', False),
         params.get('min_stddev', 1e-1))
   elif model == 'rssm':
     config.cell = functools.partial(
-        models.RSSM, state_size, size, size, params.mean_only,
+        models.RSSM, state_size, size, size,
+        params.get('future_rnn', False),
+        params.get('mean_only', False),
         params.get('min_stddev', 1e-1))
   else:
     raise NotImplementedError("Unknown model '{}.".format(params.model))

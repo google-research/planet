@@ -50,6 +50,6 @@ def decoder(state, data_shape):
   mean = hidden
   assert mean.shape[1:].as_list() == [64, 64, 3], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
-  dist = tools.MSEDistribution(mean)
+  dist = tfd.Normal(mean, 1.0)
   dist = tfd.Independent(dist, len(data_shape))
   return dist

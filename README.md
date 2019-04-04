@@ -57,7 +57,7 @@ The code prints `nan` as the score for iterations during which no summaries
 were computed.
 
 The available tasks are listed in `scripts/tasks.py`. The default parameters
-can be found in `scripts/configs.py`. To replicate the experiments in our
+can be found in `scripts/configs.py`. To run the experiments from our
 paper, pass the following parameters to `--params {...}` in addition to the
 list of tasks:
 
@@ -69,6 +69,9 @@ list of tasks:
 | Purely deterministic | `overshooting: 0, mean_only: True, divergence_scale: 0.0, global_divergence_scale: 0.0` |
 | Purely stochastic | `model: ssm` |
 | One agent all tasks | `collect_every: 30000` |
+
+Please note that the agent has seen some improvements so the results may be a
+bit different now.
 
 ## Modifications
 
@@ -103,6 +106,7 @@ The code was tested under Ubuntu 18 and uses these packages:
 - scikit-image
 - scipy
 - ruamel.yaml
+- matplotlib
 
 [dmc-rendering]: https://github.com/deepmind/dm_control#rendering
 

@@ -32,11 +32,12 @@ setuptools.setup(
     install_requires=[
         'dm_control',
         'gym',
+        'matplotlib',
         'ruamel.yaml',
         'scikit-image',
         'scipy',
-        'tensorflow-gpu==1.12.0',
-        'tensorflow_probability==0.5.0',
+        'tensorflow-gpu==1.13.1',
+        'tensorflow_probability==0.6.0',
     ],
     packages=setuptools.find_packages(),
     classifiers=[
