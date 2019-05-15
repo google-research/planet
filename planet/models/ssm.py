@@ -39,7 +39,7 @@ class SSM(base.Base):
                  (o)
   """
 
-  def __init__(self, state_size, embed_size, mean_only=False, min_stddev=1e-5):
+  def __init__(self, state_size, embed_size, mean_only=False, min_stddev=0.1):
     self._state_size = state_size
     self._embed_size = embed_size
     self._mean_only = mean_only
