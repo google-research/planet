@@ -35,7 +35,7 @@ def define_summaries(graph, config):
 
   def transform(dist):
     mean = config.postprocess_fn(dist.mean())
-    dist = tfd.Independent(tfd.Normal(mean, 1.0), len(dist.batch_shape))
+    dist = tfd.Independent(tfd.Normal(mean, 1.0), len(dist.event_shape))
     return dist
   heads['image'] = lambda features: transform(graph.heads['image'](features))
 
