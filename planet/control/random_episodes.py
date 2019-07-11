@@ -19,10 +19,10 @@ from __future__ import print_function
 from planet.control import wrappers
 
 
-def random_episodes(env_ctor, num_episodes, output_dir=None):
+def random_episodes(env_ctor, num_episodes, outdir=None):
   env = env_ctor()
-  env = wrappers.CollectGymDataset(env, output_dir)
-  episodes = []
+  env = wrappers.CollectGymDataset(env, outdir)
+  episodes = [] if outdir else None
   for _ in range(num_episodes):
     policy = lambda env, obs: env.action_space.sample()
     done = False
@@ -30,7 +30,8 @@ def random_episodes(env_ctor, num_episodes, output_dir=None):
     while not done:
       action = policy(env, obs)
       obs, _, done, info = env.step(action)
-    episodes.append(info['episode'])
+    if outdir is None:
+      episodes.append(info['episode'])
   try:
     env.close()
   except AttributeError:

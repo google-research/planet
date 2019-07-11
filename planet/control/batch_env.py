@@ -91,7 +91,7 @@ class BatchEnv(object):
       transitions = [transition() for transition in transitions]
     observs, rewards, dones, infos = zip(*transitions)
     observ = np.stack(observs)
-    reward = np.stack(rewards)
+    reward = np.stack(rewards).astype(np.float32)
     done = np.stack(dones)
     info = tuple(infos)
     return observ, reward, done, info

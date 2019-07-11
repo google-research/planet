@@ -260,7 +260,7 @@ class NormalizeActions(object):
     space = self._env.action_space
     low = np.where(self._enabled, -np.ones_like(space.low), space.low)
     high = np.where(self._enabled, np.ones_like(space.high), space.high)
-    return gym.spaces.Box(low, high)
+    return gym.spaces.Box(low, high, dtype=space.dtype)
 
   def step(self, action):
     action = (action + 1) / 2 * (self._high - self._low) + self._low
@@ -317,6 +317,7 @@ class DeepMindWrapper(object):
 
 
 class MaximumDuration(object):
+  """Limits the episode to a given upper number of decision points."""
 
   def __init__(self, env, duration):
     self._env = env
@@ -342,6 +343,7 @@ class MaximumDuration(object):
 
 
 class MinimumDuration(object):
+  """Extends the episode to a given lower number of decision points."""
 
   def __init__(self, env, duration):
     self._env = env
@@ -425,13 +427,25 @@ class PadActions(object):
 
 
 class CollectGymDataset(object):
-  """Collect transition tuples and store episodes as Numpy files."""
+  """Collect transition tuples and store episodes as Numpy files.
+
+  The time indices of the collected epiosde use the convention that at each
+  time step, the agent first decides on an action, and the environment then
+  returns the reward and observation.
+
+  This means the action causes the environment state and thus observation and
+  rewards at the same time step. A dynamics model can thus predict the sequence
+  of observations and rewards from the sequence of actions.
+
+  The first transition tuple contains the observation returned from resetting
+  the environment, together with zeros for the action and reward. Thus, the
+  episode length is one more than the number of decision points.
+  """
 
   def __init__(self, env, outdir):
     self._env = env
     self._outdir = outdir and os.path.expanduser(outdir)
     self._episode = None
-    self._transition = None
 
   def __getattr__(self, name):
     return getattr(self._env, name)
@@ -453,24 +467,25 @@ class CollectGymDataset(object):
       return lambda: self._process_reset(future())
 
   def _process_step(self, action, observ, reward, done, info):
-    self._transition.update({'action': action, 'reward': reward})
-    self._transition.update(info)
-    self._episode.append(self._transition)
-    self._transition = {}
-    if not done:
-      self._transition.update(self._process_observ(observ))
-    else:
+    transition = self._process_observ(observ).copy()
+    transition['action'] = action
+    transition['reward'] = reward
+    self._episode.append(transition)
+    if done:
       episode = self._get_episode()
-      info['episode'] = episode
+      # info['episode'] = episode
       if self._outdir:
         filename = self._get_filename()
         self._write(episode, filename)
     return observ, reward, done, info
 
   def _process_reset(self, observ):
-    self._episode = []
-    self._transition = {}
-    self._transition.update(self._process_observ(observ))
+    # Resetting the environment provides the observation for time step zero.
+    # The action and reward are not known for this time step, so we zero them.
+    transition = self._process_observ(observ).copy()
+    transition['action'] = np.zeros_like(self.action_space.low)
+    transition['reward'] = 0.0
+    self._episode = [transition]
     return observ
 
   def _process_observ(self, observ):
@@ -502,8 +517,9 @@ class CollectGymDataset(object):
       file_.seek(0)
       with tf.gfile.Open(filename, 'w') as ff:
         ff.write(file_.read())
+    folder = os.path.basename(self._outdir)
     name = os.path.splitext(os.path.basename(filename))[0]
-    print('Recorded episode {}.'.format(name))
+    print('Recorded episode {} to {}.'.format(name, folder))
 
 
 class ConvertTo32Bit(object):
@@ -676,7 +692,7 @@ class Async(object):
     """
     try:
       message, payload = self._conn.recv()
-    except ConnectionResetError:
+    except OSError:
       raise RuntimeError('Environment worker crashed.')
     # Re-raise exceptions in the main process.
     if message == self._EXCEPTION:
@@ -723,5 +739,11 @@ class Async(object):
     except Exception:
       stacktrace = ''.join(traceback.format_exception(*sys.exc_info()))
       print('Error in environment process: {}'.format(stacktrace))
-      conn.send((self._EXCEPTION, stacktrace))
-    conn.close()
+      try:
+        conn.send((self._EXCEPTION, stacktrace))
+      except Exception:
+        print('Failed to send exception back to main process.')
+    try:
+      conn.close()
+    except Exception:
+      print('Failed to properly close connection.')

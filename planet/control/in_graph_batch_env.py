@@ -94,6 +94,7 @@ class InGraphBatchEnv(object):
       observ, reward, done = tf.py_func(
           lambda a: self._batch_env.step(a)[:3], [action],
           [observ_dtype, tf.float32, tf.bool], name='step')
+      # reward = tf.cast(reward, tf.float32)
       return tf.group(
           self._observ.assign(observ),
           self._action.assign(action),

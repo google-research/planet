@@ -14,11 +14,12 @@ training time while using substantially less interaction with the environment.
 If you find this open source release useful, please reference in your paper:
 
 ```
-@article{hafner2018planet,
+@inproceedings{hafner2019planet,
   title={Learning Latent Dynamics for Planning from Pixels},
   author={Hafner, Danijar and Lillicrap, Timothy and Fischer, Ian and Villegas, Ruben and Ha, David and Lee, Honglak and Davidson, James},
-  journal={arXiv preprint arXiv:1811.04551},
-  year={2018}
+  booktitle={International Conference on Machine Learning},
+  pages={2555--2565},
+  year={2019}
 }
 ```
 
@@ -35,22 +36,19 @@ observing the next image.
 Find more information:
 
 - [Google AI Blog post][blog]
-- [Animated paper][website]
-- [Paper as PDF][paper]
+- [Project website][website]
+- [PDF paper][paper]
 
 [blog]: https://ai.googleblog.com/2019/02/introducing-planet-deep-planning.html
-[paper]: https://danijar.com/publications/2019-planet.pdf
-[website]: https://planetrl.github.io/
+[website]: https://danijar.com/project/planet/
+[paper]: https://arxiv.org/pdf/1811.04551.pdf
 
 ## Instructions
 
 To train an agent, install the dependencies and then run:
 
 ```sh
-python3 -m planet.scripts.train  \
-    --logdir /path/to/logdir \
-    --config default \
-    --params '{tasks: [cheetah_run]}'
+python3 -m planet.scripts.train --logdir /path/to/logdir --params '{tasks: [cheetah_run]}'
 ```
 
 The code prints `nan` as the score for iterations during which no summaries
@@ -64,9 +62,8 @@ list of tasks:
 | Experiment | Parameters |
 | :--------- | :--------- |
 | PlaNet | No additional parameters. |
-| No overshooting | `overshooting: 0` |
-| Random dataset | `collect_every: 999999999, num_seed_episodes: 1000` |
-| Purely deterministic | `overshooting: 0, mean_only: True, divergence_scale: 0.0, global_divergence_scale: 0.0` |
+| Random data collection | `planner_iterations: 0, train_action_noise: 1.0` |
+| Purely deterministic | `mean_only: True, divergence_scale: 0.0` |
 | Purely stochastic | `model: ssm` |
 | One agent all tasks | `collect_every: 30000` |
 

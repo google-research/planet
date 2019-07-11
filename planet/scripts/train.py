@@ -29,9 +29,6 @@ python3 -m planet.scripts.train \
     --num_runs 1000 \
     --config debug \
     --params '{tasks: [cheetah_run]}'
-
-To run multiple experiments using a smaller number of workers, pass
-`--ping_every 30` to enable coordination between the workers.
 """
 
 from __future__ import absolute_import
@@ -42,6 +39,9 @@ import argparse
 import functools
 import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))))
 
 # Need offline backend to render summaries from within tf.py_func.
 import matplotlib
@@ -63,17 +63,12 @@ def process(logdir, args):
     config = getattr(configs, args.config)(config, args.params)
   training.utility.collect_initial_episodes(config)
   tf.reset_default_graph()
-  dataset = tools.numpy_episodes(
+  dataset = tools.numpy_episodes.numpy_episodes(
       config.train_dir, config.test_dir, config.batch_shape,
+      reader=config.data_reader,
       loader=config.data_loader,
-      preprocess_fn=config.preprocess_fn,
-      scan_every=config.scan_episodes_every,
       num_chunks=config.num_chunks,
-      resize=config.resize,
-      sub_sample=config.sub_sample,
-      max_length=config.max_length,
-      max_episodes=config.max_episodes,
-      action_noise=config.fixed_action_noise)
+      preprocess_fn=config.preprocess_fn)
   for score in training.utility.train(
       training.define_model, dataset, logdir, config):
     yield score
@@ -96,7 +91,7 @@ if __name__ == '__main__':
   boolean = lambda x: bool(['False', 'True'].index(x))
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--logdir', default=None)
+      '--logdir', required=True)
   parser.add_argument(
       '--num_runs', type=int, default=1)
   parser.add_argument(

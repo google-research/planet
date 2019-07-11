@@ -16,13 +16,19 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from . import planning
-from .batch_env import BatchEnv
-from .dummy_env import DummyEnv
-from .in_graph_batch_env import InGraphBatchEnv
-from .mpc_agent import MPCAgent
-from .random_episodes import random_episodes
-from .simulate import simulate
-from .temporal_difference import discounted_return
-from .temporal_difference import fixed_step_return
-from .temporal_difference import lambda_return
+
+class bind(object):
+
+  def __init__(self, fn, *args, **kwargs):
+    self._fn = fn
+    self._args = args
+    self._kwargs = kwargs
+
+  def __call__(self, *args, **kwargs):
+    args_ = self._args + args
+    kwargs_ = self._kwargs.copy()
+    kwargs_.update(kwargs)
+    return self._fn(*args_, **kwargs_)
+
+  def __repr__(self):
+    return 'bind({})'.format(self._fn.__name__)

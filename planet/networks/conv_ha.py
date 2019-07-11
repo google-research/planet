@@ -46,8 +46,7 @@ def decoder(state, data_shape):
   hidden = tf.layers.conv2d_transpose(hidden, 128, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 64, 5, **kwargs)
   hidden = tf.layers.conv2d_transpose(hidden, 32, 6, **kwargs)
-  hidden = tf.layers.conv2d_transpose(hidden, 3, 6, strides=2)
-  mean = hidden
+  mean = tf.layers.conv2d_transpose(hidden, 3, 6, strides=2)
   assert mean.shape[1:].as_list() == [64, 64, 3], mean.shape
   mean = tf.reshape(mean, tools.shape(state)[:-1] + data_shape)
   dist = tfd.Normal(mean, 1.0)

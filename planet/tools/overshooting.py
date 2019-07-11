@@ -26,7 +26,8 @@ from planet.tools import shape
 
 
 def overshooting(
-    cell, target, embedded, prev_action, length, amount, ignore_input=False):
+    cell, target, embedded, prev_action, length, amount, posterior=None,
+    ignore_input=False):
   """Perform open loop rollouts from the posteriors at every step.
 
   First, we apply the encoder to embed raw inputs and apply the model to obtain
@@ -69,26 +70,28 @@ def overshooting(
   # Closed loop unroll to get posterior states, which are the starting points
   # for open loop unrolls. We don't need the last time step, since we have no
   # targets for unrolls from it.
-  use_obs = tf.ones(tf.shape(
-      nested.flatten(embedded)[0][:, :, :1])[:3], tf.bool)
-  use_obs = tf.cond(
-      tf.convert_to_tensor(ignore_input),
-      lambda: tf.zeros_like(use_obs, tf.bool),
-      lambda: use_obs)
-  (prior, posterior), _ = tf.nn.dynamic_rnn(
-      cell, (embedded, prev_action, use_obs), length, dtype=tf.float32,
-      swap_memory=True)
+  if posterior is None:
+    use_obs = tf.ones(tf.shape(
+        nested.flatten(embedded)[0][:, :, :1])[:3], tf.bool)
+    use_obs = tf.cond(
+        tf.convert_to_tensor(ignore_input),
+        lambda: tf.zeros_like(use_obs, tf.bool),
+        lambda: use_obs)
+    (_, posterior), _ = tf.nn.dynamic_rnn(
+        cell, (embedded, prev_action, use_obs), length, dtype=tf.float32,
+        swap_memory=True)
 
   # Arrange inputs for every iteration in the open loop unroll. Every loop
   # iteration below corresponds to one row in the docstring illustration.
   max_length = shape.shape(nested.flatten(embedded)[0])[1]
   first_output = {
-      'observ': embedded,
+      # 'observ': embedded,
       'prev_action': prev_action,
       'posterior': posterior,
       'target': target,
       'mask': tf.sequence_mask(length, max_length, tf.int32),
   }
+
   progress_fn = lambda tensor: tf.concat([tensor[:, 1:], 0 * tensor[:, :1]], 1)
   other_outputs = tf.scan(
       lambda past_output, _: nested.map(progress_fn, past_output),
@@ -118,13 +121,15 @@ def overshooting(
 
   # Compute open loop rollouts.
   use_obs = tf.zeros(tf.shape(sequences['mask']), tf.bool)[..., None]
+  embed_size = nested.flatten(embedded)[0].shape[2].value
+  obs = tf.zeros(shape.shape(sequences['mask']) + [embed_size])
   prev_state = nested.map(
       lambda tensor: tf.concat([0 * tensor[:, :1], tensor[:, :-1]], 1),
       posterior)
   prev_state = nested.map(
       lambda tensor: _merge_dims(tensor, [0, 1]), prev_state)
   (priors, _), _ = tf.nn.dynamic_rnn(
-      cell, (sequences['observ'], sequences['prev_action'], use_obs),
+      cell, (obs, sequences['prev_action'], use_obs),
       merged_length,
       prev_state)
 

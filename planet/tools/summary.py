@@ -16,6 +16,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -93,7 +95,8 @@ def dataset_summaries(directory, name='dataset'):
   return summaries
 
 
-def state_summaries(cell, prior, posterior, mask, name='state'):
+def state_summaries(
+    cell, prior, posterior, mask, histograms=False, name='state'):
   summaries = []
   divergence = cell.divergence_from_states(posterior, prior, mask)
   prior = cell.dist_from_state(prior, mask)
@@ -102,26 +105,44 @@ def state_summaries(cell, prior, posterior, mask, name='state'):
   posterior_entropy = posterior.entropy()
   nan_to_num = lambda x: tf.where(tf.is_nan(x), tf.zeros_like(x), x)
   with tf.variable_scope(name):
-    summaries.append(tf.summary.histogram(
-        'prior_entropy_hist', nan_to_num(prior_entropy)))
+    if histograms:
+      summaries.append(tf.summary.histogram(
+          'prior_entropy_hist', nan_to_num(prior_entropy)))
     summaries.append(tf.summary.scalar(
         'prior_entropy', tf.reduce_mean(prior_entropy)))
-    summaries.append(tf.summary.histogram(
-        'posterior_entropy_hist', nan_to_num(posterior_entropy)))
+    summaries.append(tf.summary.scalar(
+        'prior_std', tf.reduce_mean(prior.stddev())))
+    if histograms:
+      summaries.append(tf.summary.histogram(
+          'posterior_entropy_hist', nan_to_num(posterior_entropy)))
     summaries.append(tf.summary.scalar(
         'posterior_entropy', tf.reduce_mean(posterior_entropy)))
+    summaries.append(tf.summary.scalar(
+        'posterior_std', tf.reduce_mean(posterior.stddev())))
     summaries.append(tf.summary.scalar(
         'divergence', tf.reduce_mean(divergence)))
   return summaries
 
 
-def log_prob_summaries(dists, obs, mask, name='log_prob'):
+def dist_summaries(dists, obs, mask, name='dist_summaries'):
   summaries = []
   with tf.variable_scope(name):
-    for key, dist in dists.items():
-      log_probs = dist.log_prob(obs[key])
-      log_prob = tf.reduce_mean(masklib.mask(log_probs, mask))
-      summaries.append(tf.summary.scalar(key, log_prob))
+    for name, dist in dists.items():
+      mode = dist.mode()
+      mode_mean, mode_var = tf.nn.moments(mode, list(range(mode.shape.ndims)))
+      mode_std = tf.sqrt(mode_var)
+      summaries.append(tf.summary.scalar(name + '_mode_mean', mode_mean))
+      summaries.append(tf.summary.scalar(name + '_mode_std', mode_std))
+      std = dist.stddev()
+      std_mean, std_var = tf.nn.moments(std, list(range(std.shape.ndims)))
+      std_std = tf.sqrt(std_var)
+      summaries.append(tf.summary.scalar(name + '_std_mean', std_mean))
+      summaries.append(tf.summary.scalar(name + '_std_std', std_std))
+      if name in obs:
+        log_prob = tf.reduce_mean(dist.log_prob(obs[name]))
+        summaries.append(tf.summary.scalar(name + '_log_prob', log_prob))
+        abs_error = tf.reduce_mean(tf.abs(dist.mode() - obs[name]))
+        summaries.append(tf.summary.scalar(name + '_abs_error', abs_error))
   return summaries
 
 
@@ -150,11 +171,11 @@ def image_summaries(dist, target, name='image', max_batch=10):
   return summaries
 
 
-def loss_summaries(losses, name='loss'):
+def objective_summaries(objectives, name='objectives'):
   summaries = []
   with tf.variable_scope(name):
-    for key, value in losses.items():
-      summaries.append(tf.summary.scalar(key, value))
+    for objective in objectives:
+      summaries.append(tf.summary.scalar(objective.name, objective.value))
   return summaries
 
 
@@ -165,6 +186,8 @@ def prediction_summaries(dists, data, state, name='state'):
     log_probs = {}
     for key, dist in dists.items():
       if key in ('image',):
+        continue
+      if key not in data:
         continue
       # We only look at the first example in the batch.
       log_prob = dist.log_prob(data[key])[0]
