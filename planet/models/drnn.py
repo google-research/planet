@@ -89,11 +89,14 @@ class DRNN(base.Base):
     """Extract features for the decoder network from a prior or posterior."""
     return state['decoder_state']
 
-  def divergence_from_states(self, lhs, rhs, mask):
+  def divergence_from_states(self, lhs, rhs, mask=None):
     """Compute the divergence measure between two states."""
     lhs = self.dist_from_state(lhs, mask)
     rhs = self.dist_from_state(rhs, mask)
-    return tools.mask(tfd.kl_divergence(lhs, rhs), mask)
+    divergence = tfd.kl_divergence(lhs, rhs)
+    if mask is not None:
+      divergence = tools.mask(divergence, mask)
+    return divergence
 
   def _posterior(self, prev_state, prev_action, obs):
     """Compute posterior state from previous state and current observation."""
