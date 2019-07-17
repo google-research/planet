@@ -16,13 +16,23 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from . import planning
-from .batch_env import BatchEnv
-from .dummy_env import DummyEnv
-from .in_graph_batch_env import InGraphBatchEnv
-from .mpc_agent import MPCAgent
-from .random_episodes import random_episodes
-from .simulate import simulate
-from .temporal_difference import discounted_return
-from .temporal_difference import fixed_step_return
-from .temporal_difference import lambda_return
+import tensorflow as tf
+
+from planet.tools import schedule as schedule_lib
+from planet.tools import copy_weights
+
+
+def track_network(
+    trainer, batch_size, source_pattern, target_pattern, every, amount):
+  init_op = tf.cond(
+      tf.equal(trainer.global_step, 0),
+      lambda: copy_weights.soft_copy_weights(
+          source_pattern, target_pattern, 1.0),
+      tf.no_op)
+  schedule = schedule_lib.binary(trainer.step, batch_size, 0, every, -1)
+  with tf.control_dependencies([init_op]):
+    return tf.cond(
+        tf.logical_and(tf.equal(trainer.phase, 'train'), schedule),
+        lambda: copy_weights.soft_copy_weights(
+            source_pattern, target_pattern, amount),
+        tf.no_op)

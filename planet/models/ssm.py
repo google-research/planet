@@ -39,7 +39,9 @@ class SSM(base.Base):
                  (o)
   """
 
-  def __init__(self, state_size, embed_size, mean_only=False, min_stddev=0.1):
+  def __init__(
+      self, state_size, embed_size,
+      mean_only=False, activation=tf.nn.elu, min_stddev=1e-5):
     self._state_size = state_size
     self._embed_size = embed_size
     self._mean_only = mean_only
@@ -47,7 +49,7 @@ class SSM(base.Base):
     super(SSM, self).__init__(
         tf.make_template('transition', self._transition),
         tf.make_template('posterior', self._posterior))
-    self._kwargs = dict(units=self._embed_size, activation=tf.nn.relu)
+    self._kwargs = dict(units=self._embed_size, activation=activation)
 
   @property
   def state_size(self):
@@ -70,11 +72,14 @@ class SSM(base.Base):
     """Extract features for the decoder network from a prior or posterior."""
     return state['sample']
 
-  def divergence_from_states(self, lhs, rhs, mask):
+  def divergence_from_states(self, lhs, rhs, mask=None):
     """Compute the divergence measure between two states."""
     lhs = self.dist_from_state(lhs, mask)
     rhs = self.dist_from_state(rhs, mask)
-    return tools.mask(tfd.kl_divergence(lhs, rhs), mask)
+    divergence = tfd.kl_divergence(lhs, rhs)
+    if mask is not None:
+      divergence = tools.mask(divergence, mask)
+    return divergence
 
   def _transition(self, prev_state, prev_action, zero_obs):
     """Compute prior next state by applying the transition dynamics."""

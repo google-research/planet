@@ -20,24 +20,34 @@ import numpy as np
 import tensorflow as tf
 
 
-def binary(step, batch_size, after, every):
-  # https://www.desmos.com/calculator/dylm2zx0oj
+def binary(step, batch_size, after, every, until):
+  # https://www.desmos.com/calculator/csbhr5cjzz
   offset_step = step - after
   phase = tf.less(offset_step % every, batch_size)
-  active = tf.greater_equal(offset_step, 0)
+  active = tf.greater_equal(step, after)
+  if until > 0:
+      active = tf.logical_and(active, tf.less(step, until))
   result = tf.logical_and(phase, active)
   result.set_shape(tf.TensorShape([]))
   return result
 
 
-def linear(step, ramp):
-  # https://www.desmos.com/calculator/q9egmfx3xr
+def linear(step, ramp, min=None, max=None):
+  # https://www.desmos.com/calculator/nrumhgvxql
   if ramp == 0:
     result = tf.constant(1, tf.float32)
   if ramp > 0:
     result = tf.minimum(tf.to_float(step) / tf.to_float(ramp), 1)
   if ramp < 0:
     result = 1 - linear(step, abs(ramp))
+  if min is not None and max is not None:
+    assert min <= max
+  if min is not None:
+    assert 0 <= min <= 1
+    result = tf.maximum(min, result)
+  if max is not None:
+    assert 0 <= min <= 1
+    result = tf.minimum(result, max)
   result.set_shape(tf.TensorShape([]))
   return result
 

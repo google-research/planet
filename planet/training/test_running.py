@@ -52,7 +52,7 @@ class TestExperiment(tf.test.TestCase):
     filepaths = tf.gfile.Glob(os.path.join(basedir, '*/numbers'))
     self.assertEqual(100, len(filepaths))
     for filepath in filepaths:
-      with tf.gfile.FastGFile(filepath, 'rb') as file_:
+      with tf.gfile.GFile(filepath, 'rb') as file_:
         self.assertEqual(10, len(pickle.load(file_)))
 
   def test_dying_workers(self):
@@ -85,7 +85,7 @@ class TestExperiment(tf.test.TestCase):
     filepaths = tf.gfile.Glob(os.path.join(basedir, '*/numbers'))
     self.assertEqual(100, len(filepaths))
     for filepath in filepaths:
-      with tf.gfile.FastGFile(filepath, 'rb') as file_:
+      with tf.gfile.GFile(filepath, 'rb') as file_:
         self.assertEqual(10, len(pickle.load(file_)))
 
 
@@ -114,9 +114,9 @@ def _start_fn(logdir):
   assert not tf.gfile.Exists(os.path.join(logdir, 'DONE'))
   assert not tf.gfile.Exists(os.path.join(logdir, 'started'))
   assert not tf.gfile.Exists(os.path.join(logdir, 'resumed'))
-  with tf.gfile.FastGFile(os.path.join(logdir, 'started'), 'w') as file_:
+  with tf.gfile.GFile(os.path.join(logdir, 'started'), 'w') as file_:
     file_.write('\n')
-  with tf.gfile.FastGFile(os.path.join(logdir, 'numbers'), 'wb') as file_:
+  with tf.gfile.GFile(os.path.join(logdir, 'numbers'), 'wb') as file_:
     pickle.dump([], file_)
   return []
 
@@ -124,9 +124,9 @@ def _start_fn(logdir):
 def _resume_fn(logdir):
   assert not tf.gfile.Exists(os.path.join(logdir, 'DONE'))
   assert tf.gfile.Exists(os.path.join(logdir, 'started'))
-  with tf.gfile.FastGFile(os.path.join(logdir, 'resumed'), 'w') as file_:
+  with tf.gfile.GFile(os.path.join(logdir, 'resumed'), 'w') as file_:
     file_.write('\n')
-  with tf.gfile.FastGFile(os.path.join(logdir, 'numbers'), 'rb') as file_:
+  with tf.gfile.GFile(os.path.join(logdir, 'numbers'), 'rb') as file_:
     numbers = pickle.load(file_)
   if len(numbers) != 5:
     raise Exception('Expected to be resumed in the middle for this test.')
@@ -139,7 +139,7 @@ def _process_fn(logdir, numbers):
     number = np.random.uniform(0, 0.1)
     time.sleep(number)
     numbers.append(number)
-    with tf.gfile.FastGFile(os.path.join(logdir, 'numbers'), 'wb') as file_:
+    with tf.gfile.GFile(os.path.join(logdir, 'numbers'), 'wb') as file_:
       pickle.dump(numbers, file_)
     yield number
 

@@ -45,7 +45,8 @@ def encode_gif(images, fps):
       '-s', '%dx%d' % (w, h),
       '-pix_fmt', {1: 'gray', 3: 'rgb24'}[c],
       '-i', '-',
-      '-filter_complex', '[0:v]split[x][z];[z]palettegen[y];[x][y]paletteuse',
+      '-filter_complex',
+      '[0:v]split[x][z];[z]palettegen[y];[x]fifo[x];[x][y]paletteuse',
       '-r', '%.02f' % fps,
       '-f', 'gif',
       '-']

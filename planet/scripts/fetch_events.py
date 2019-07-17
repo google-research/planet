@@ -18,7 +18,7 @@ from __future__ import print_function
 
 import argparse
 import csv
-import errno
+import fnmatch
 import functools
 import multiprocessing.dummy as multiprocessing
 import os
@@ -34,80 +34,80 @@ from tensorboard.backend.event_processing import (
     plugin_event_multiplexer as event_multiplexer)
 
 
-DEFAULT_TAGS = {
-    'score': 'trainer/graph/phase_test/cond_2/trainer/test/score',
-    'rollout': 'graph/summaries/simulation/cond/cem-reward-12/image/image/0',
-}
+lock = multiprocessing.Lock()
+
+
+def safe_print(*args, **kwargs):
+  with lock:
+    print(*args, **kwargs)
 
 
 def create_reader(logdir):
-  reader = event_multiplexer.EventMultiplexer(
-      tensor_size_guidance={'scalars': 1000})
-  reader.AddRunsFromDirectory(logdir)
+  reader = event_multiplexer.EventMultiplexer()
+  reader.AddRun(logdir, 'run')
   reader.Reload()
   return reader
 
 
-def extract_values(reader, run, tag):
-  events = reader.Tensors(run, tag)
+def extract_values(reader, tag):
+  events = reader.Tensors('run', tag)
   steps = [event.step for event in events]
   times = [event.wall_time for event in events]
   values = [tf.make_ndarray(event.tensor_proto) for event in events]
   return steps, times, values
 
 
-def export_scalar(filepath, steps, times, values):
+def export_scalar(basename, steps, times, values):
+  safe_print('Writing', basename + '.csv')
   values = [value.item() for value in values]
-  with open(filepath + '.csv', 'w') as outfile:
+  with tf.gfile.Open(basename + '.csv', 'w') as outfile:
     writer = csv.writer(outfile)
     writer.writerow(('wall_time', 'step', 'value'))
     for row in zip(times, steps, values):
       writer.writerow(row)
 
 
-def export_image(filepath, steps, times, values):
+def export_image(basename, steps, times, values):
   tf.reset_default_graph()
   tf_string = tf.placeholder(tf.string)
   tf_tensor = tf.image.decode_image(tf_string)
   with tf.Session() as sess:
-    for step, time, value in zip(steps, times, values):
-      filename = '{}-{}-{}.png'.format(filepath, step, time)
+    for step, time_, value in zip(steps, times, values):
+      filename = '{}-{}-{}.png'.format(basename, step, time_)
       width, height, string = value[0], value[1], value[2]
+      del width
+      del height
       tensor = sess.run(tf_tensor, {tf_string: string})
       # imageio.imsave(filename, tensor)
       skimage.io.imsave(filename, tensor)
-      filename = '{}-{}-{}.npy'.format(filepath, step, time)
+      filename = '{}-{}-{}.npy'.format(basename, step, time_)
       np.save(filename, tensor)
 
 
-def process_logdir(logdir, lock, args):
-  reader = create_reader(logdir)
-  runs = tf.gfile.Glob(os.path.join(logdir, args.runs))
-  for run in runs:
-    filename = re.sub('[^A-Za-z0-9_]', '_', '{}___{}'.format(run, args.tag))
-    filepath = os.path.join(args.outdir, filename)
-    if os.path.exists(filepath) and not args.force:
-      with lock:
-        print('Exists', run)
-      return
-    try:
-      with lock:
-        print('Start', run)
-        steps, times, values = extract_values(
-            reader, os.path.relpath(run, logdir), args.tag)
-        if args.type == 'scalar':
-          export_scalar(filepath, steps, times, values)
-        elif args.type == 'image':
-          export_image(filepath, steps, times, values)
-        else:
-          message = "Unsupported summary type '{}'."
-          raise NotImplementedError(message.format(args.type))
-      with lock:
-        print('Done', run)
-    except Exception:
-      with lock:
-        print('Exception', run)
-        print(traceback.print_exc())
+def process_logdir(logdir, args):
+  clean = lambda text: re.sub('[^A-Za-z0-9_]', '_', text)
+  basename = os.path.join(args.outdir, clean(logdir))
+  if len(tf.gfile.Glob(basename + '*')) > 0 and not args.force:
+    safe_print('Exists', logdir)
+    return
+  try:
+    safe_print('Start', logdir)
+    reader = create_reader(logdir)
+    for tag in reader.Runs()['run']['tensors']:  # tensors -> scalars
+      if fnmatch.fnmatch(tag, args.tags):
+        steps, times, values = extract_values(reader, tag)
+        filename = '{}___{}'.format(basename, clean(tag))
+        export_scalar(filename, steps, times, values)
+    # for tag in tags['images']:
+    #   if fnmatch.fnmatch(tag, args.tags):
+    #     steps, times, values = extract_values(reader, tag)
+    #     filename = '{}___{}'.format(basename, clean(tag))
+    #     export_image(filename, steps, times, values)
+    del reader
+    safe_print('Done', logdir)
+  except Exception:
+    safe_print('Exception', logdir)
+    safe_print(traceback.print_exc())
 
 
 def main(args):
@@ -115,9 +115,10 @@ def main(args):
   print(len(logdirs), 'logdirs.')
   assert logdirs
   tf.gfile.MakeDirs(args.outdir)
+  np.random.shuffle(logdirs)
   pool = multiprocessing.Pool(args.workers)
-  lock = multiprocessing.Lock()
-  pool.map(functools.partial(process_logdir, lock=lock, args=args), logdirs)
+  worker_fn = functools.partial(process_logdir, args=args)
+  pool.map(worker_fn, logdirs)
 
 
 if __name__ == '__main__':
@@ -125,19 +126,13 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--logdirs', required=True,
-      help='glob for directories to scan')
+      help='glob for log directories to fetch')
   parser.add_argument(
-      '--runs', default='test',
-      help='glob for sub-directories to read from')
-  parser.add_argument(
-      '--tag', default='score',
-      help='summary name to read')
-  parser.add_argument(
-      '--type', default='scalar', choices=['scalar', 'image'],
-      help='summary type')
+      '--tags', default='trainer*score',
+      help='glob for tags to save')
   parser.add_argument(
       '--outdir', required=True,
-      help='output directory to store CSV files')
+      help='output directory to store values')
   parser.add_argument(
       '--force', type=boolean, default=False,
       help='overwrite existing files')
@@ -147,7 +142,5 @@ if __name__ == '__main__':
   args_, remaining = parser.parse_known_args()
   args_.logdirs = os.path.expanduser(args_.logdirs)
   args_.outdir = os.path.expanduser(args_.outdir)
-  if args_.tag in DEFAULT_TAGS:
-    args_.tag = DEFAULT_TAGS[args_.tag]
   remaining.insert(0, sys.argv[0])
   tf.app.run(lambda _: main(args_), remaining)

@@ -12,20 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Copmute discounted return."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow as tf
 
 
-def discounted_return(reward, length, discount):
-  """Discounted Monte-Carlo returns."""
-  timestep = tf.range(reward.shape[1].value)
-  mask = tf.cast(timestep[None, :] < length[:, None], tf.float32)
-  return_ = tf.reverse(tf.transpose(tf.scan(
-      lambda agg, cur: cur + discount * agg,
-      tf.transpose(tf.reverse(mask * reward, [1]), [1, 0]),
-      tf.zeros_like(reward[:, -1]), 1, False), [1, 0]), [1])
-  return tf.stop_gradient(return_)
+def bound_action(action, strategy):
+  if strategy == 'none':
+    pass
+  elif strategy == 'clip':
+    forward = tf.stop_gradient(tf.clip_by_value(action, -1.0, 1.0))
+    action = action - tf.stop_gradient(action) + forward
+  elif strategy == 'tanh':
+    action = tf.tanh(action)
+  else:
+    raise NotImplementedError(strategy)
+  return action

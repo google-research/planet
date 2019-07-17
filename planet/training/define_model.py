@@ -28,133 +28,68 @@ from planet.training import utility
 def define_model(data, trainer, config):
   tf.logging.info('Build TensorFlow compute graph.')
   dependencies = []
+  cleanups = []
   step = trainer.step
   global_step = trainer.global_step
   phase = trainer.phase
-  should_summarize = trainer.log
-
-  # Preprocess data.
-  with tf.device('/cpu:0'):
-    if config.dynamic_action_noise:
-      data['action'] += tf.random_normal(
-          tf.shape(data['action']), 0.0, config.dynamic_action_noise)
-    prev_action = tf.concat(
-        [0 * data['action'][:, :1], data['action'][:, :-1]], 1)
-    obs = data.copy()
-    del obs['length']
 
   # Instantiate network blocks.
   cell = config.cell()
-  kwargs = dict()
-  encoder = tf.make_template(
-      'encoder', config.encoder, create_scope_now_=True, **kwargs)
-  heads = {}
+  kwargs = dict(create_scope_now_=True)
+  encoder = tf.make_template('encoder', config.encoder, **kwargs)
+  heads = tools.AttrDict(_unlocked=True)
+  dummy_features = cell.features_from_state(cell.zero_state(1, tf.float32))
   for key, head in config.heads.items():
     name = 'head_{}'.format(key)
-    kwargs = dict(data_shape=obs[key].shape[2:].as_list())
-    heads[key] = tf.make_template(name, head, create_scope_now_=True, **kwargs)
+    kwargs = dict(create_scope_now_=True)
+    if key in data:
+      kwargs['data_shape'] = data[key].shape[2:].as_list()
+    elif key == 'action_target':
+      kwargs['data_shape'] = data['action'].shape[2:].as_list()
+    heads[key] = tf.make_template(name, head, **kwargs)
+    heads[key](dummy_features)  # Initialize weights.
 
-  # Embed observations and unroll model.
-  embedded = encoder(obs)
-  # Separate overshooting and zero step observations because computing
-  # overshooting targets for images would be expensive.
-  zero_step_obs = {}
-  overshooting_obs = {}
-  for key, value in obs.items():
-    if config.zero_step_losses.get(key):
-      zero_step_obs[key] = value
-    if config.overshooting_losses.get(key):
-      overshooting_obs[key] = value
-  assert config.overshooting <= config.batch_shape[1]
-  target, prior, posterior, mask = tools.overshooting(
-      cell, overshooting_obs, embedded, prev_action, data['length'],
-      config.overshooting + 1)
-  losses = []
-
-  # Zero step losses.
-  _, zs_prior, zs_posterior, zs_mask = tools.nested.map(
-      lambda tensor: tensor[:, :, :1], (target, prior, posterior, mask))
-  zs_target = {key: value[:, :, None] for key, value in zero_step_obs.items()}
-  zero_step_losses = utility.compute_losses(
-      config.zero_step_losses, cell, heads, step, zs_target, zs_prior,
-      zs_posterior, zs_mask, config.free_nats, debug=config.debug)
-  losses += [
-      loss * config.zero_step_losses[name] for name, loss in
-      zero_step_losses.items()]
-  if 'divergence' not in zero_step_losses:
-    zero_step_losses['divergence'] = tf.zeros((), dtype=tf.float32)
-
-  # Overshooting losses.
-  if config.overshooting > 1:
-    os_target, os_prior, os_posterior, os_mask = tools.nested.map(
-        lambda tensor: tensor[:, :, 1:-1], (target, prior, posterior, mask))
-    if config.stop_os_posterior_gradient:
-      os_posterior = tools.nested.map(tf.stop_gradient, os_posterior)
-    overshooting_losses = utility.compute_losses(
-        config.overshooting_losses, cell, heads, step, os_target, os_prior,
-        os_posterior, os_mask, config.free_nats, debug=config.debug)
-    losses += [
-        loss * config.overshooting_losses[name] for name, loss in
-        overshooting_losses.items()]
-  else:
-    overshooting_losses = {}
-  if 'divergence' not in overshooting_losses:
-    overshooting_losses['divergence'] = tf.zeros((), dtype=tf.float32)
-
-  # Workaround for TensorFlow deadlock bug.
-  loss = sum(losses)
-  train_loss = tf.cond(
-      tf.equal(phase, 'train'),
-      lambda: loss,
-      lambda: 0 * tf.get_variable('dummy_loss', (), tf.float32))
-  train_summary = utility.apply_optimizers(
-      train_loss, step, should_summarize, config.optimizers)
-  # train_summary = tf.cond(
-  #     tf.equal(phase, 'train'),
-  #     lambda: utility.apply_optimizers(
-  #         loss, step, should_summarize, config.optimizers),
-  #     str, name='optimizers')
+  # Apply and optimize model.
+  embedded = encoder(data)
+  with tf.control_dependencies(dependencies):
+    embedded = tf.identity(embedded)
+  graph = tools.AttrDict(locals())
+  prior, posterior = tools.unroll.closed_loop(
+      cell, embedded, data['action'], config.debug)
+  objectives = utility.compute_objectives(
+      posterior, prior, data, graph, config)
+  summaries, grad_norms = utility.apply_optimizers(
+      objectives, trainer, config)
 
   # Active data collection.
-  collect_summaries = []
-  graph = tools.AttrDict(locals())
   with tf.variable_scope('collection'):
-    should_collects = []
-    for name, params in config.sim_collects.items():
-      after, every = params.steps_after, params.steps_every
-      should_collect = tf.logical_and(
-          tf.equal(phase, 'train'),
-          tools.schedule.binary(step, config.batch_shape[0], after, every))
-      collect_summary, _ = tf.cond(
-          should_collect,
-          functools.partial(
-              utility.simulate_episodes, config, params, graph,
-              expensive_summaries=False, name=name),
-          lambda: (tf.constant(''), tf.constant(0.0)),
-          name='should_collect_' + params.task.name)
-      should_collects.append(should_collect)
-      collect_summaries.append(collect_summary)
+    with tf.control_dependencies(summaries):  # Make sure to train first.
+      for name, params in config.train_collects.items():
+        schedule = tools.schedule.binary(
+            step, config.batch_shape[0],
+            params.steps_after, params.steps_every, params.steps_until)
+        summary, _ = tf.cond(
+            tf.logical_and(tf.equal(trainer.phase, 'train'), schedule),
+            functools.partial(
+                utility.simulate_episodes, config, params, graph, cleanups,
+                expensive_summaries=False, gif_summary=False, name=name),
+            lambda: (tf.constant(''), tf.constant(0.0)),
+            name='should_collect_' + name)
+        summaries.append(summary)
 
   # Compute summaries.
   graph = tools.AttrDict(locals())
-  with tf.control_dependencies(collect_summaries):
-    summaries, score = tf.cond(
-        should_summarize,
-        lambda: define_summaries.define_summaries(graph, config),
-        lambda: (tf.constant(''), tf.zeros((0,), tf.float32)),
-        name='summaries')
-  with tf.device('/cpu:0'):
-    summaries = tf.summary.merge(
-        [summaries, train_summary] + collect_summaries)
-    zs_entropy = (tf.reduce_sum(tools.mask(
-        cell.dist_from_state(zs_posterior, zs_mask).entropy(), zs_mask)) /
-        tf.reduce_sum(tf.to_float(zs_mask)))
-    dependencies.append(utility.print_metrics((
-        ('score', score),
-        ('loss', loss),
-        ('zs_entropy', zs_entropy),
-        ('zs_divergence', zero_step_losses['divergence']),
-    ), step, config.mean_metrics_every))
+  summary, score = tf.cond(
+      trainer.log,
+      lambda: define_summaries.define_summaries(graph, config, cleanups),
+      lambda: (tf.constant(''), tf.zeros((0,), tf.float32)),
+      name='summaries')
+  summaries = tf.summary.merge([summaries, summary])
+  dependencies.append(utility.print_metrics(
+      {ob.name: ob.value for ob in objectives},
+      step, config.print_metrics_every, 'objectives'))
+  dependencies.append(utility.print_metrics(
+      grad_norms, step, config.print_metrics_every, 'grad_norms'))
   with tf.control_dependencies(dependencies):
     score = tf.identity(score)
-  return score, summaries
+  return score, summaries, cleanups

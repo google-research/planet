@@ -46,15 +46,17 @@ class RSSM(base.Base):
 
   def __init__(
       self, state_size, belief_size, embed_size,
-      future_mix=False, mean_only=False, min_stddev=0.1):
+      future_rnn=True, mean_only=False, min_stddev=0.1, activation=tf.nn.elu,
+      num_layers=1):
     self._state_size = state_size
     self._belief_size = belief_size
     self._embed_size = embed_size
-    self._future_mix = future_mix
+    self._future_rnn = future_rnn
     self._cell = tf.contrib.rnn.GRUBlockCell(self._belief_size)
-    self._kwargs = dict(units=self._embed_size, activation=tf.nn.relu)
+    self._kwargs = dict(units=self._embed_size, activation=activation)
     self._mean_only = mean_only
     self._min_stddev = min_stddev
+    self._num_layers = num_layers
     super(RSSM, self).__init__(
         tf.make_template('transition', self._transition),
         tf.make_template('posterior', self._posterior))
@@ -82,20 +84,25 @@ class RSSM(base.Base):
     """Extract features for the decoder network from a prior or posterior."""
     return tf.concat([state['sample'], state['belief']], -1)
 
-  def divergence_from_states(self, lhs, rhs, mask):
+  def divergence_from_states(self, lhs, rhs, mask=None):
     """Compute the divergence measure between two states."""
     lhs = self.dist_from_state(lhs, mask)
     rhs = self.dist_from_state(rhs, mask)
-    return tools.mask(tfd.kl_divergence(lhs, rhs), mask)
+    divergence = tfd.kl_divergence(lhs, rhs)
+    if mask is not None:
+      divergence = tools.mask(divergence, mask)
+    return divergence
 
   def _transition(self, prev_state, prev_action, zero_obs):
     """Compute prior next state by applying the transition dynamics."""
-    inputs = tf.concat([prev_state['sample'], prev_action], -1)
-    hidden = tf.layers.dense(inputs, **self._kwargs)
+    hidden = tf.concat([prev_state['sample'], prev_action], -1)
+    for _ in range(self._num_layers):
+      hidden = tf.layers.dense(hidden, **self._kwargs)
     belief, rnn_state = self._cell(hidden, prev_state['rnn_state'])
-    if self._future_mix:
+    if self._future_rnn:
       hidden = belief
-    hidden = tf.layers.dense(hidden, **self._kwargs)
+    for _ in range(self._num_layers):
+      hidden = tf.layers.dense(hidden, **self._kwargs)
     mean = tf.layers.dense(hidden, self._state_size, None)
     stddev = tf.layers.dense(hidden, self._state_size, tf.nn.softplus)
     stddev += self._min_stddev
@@ -114,8 +121,9 @@ class RSSM(base.Base):
   def _posterior(self, prev_state, prev_action, obs):
     """Compute posterior state from previous state and current observation."""
     prior = self._transition_tpl(prev_state, prev_action, tf.zeros_like(obs))
-    inputs = tf.concat([prior['belief'], obs], -1)
-    hidden = tf.layers.dense(inputs, **self._kwargs)
+    hidden = tf.concat([prior['belief'], obs], -1)
+    for _ in range(self._num_layers):
+      hidden = tf.layers.dense(hidden, **self._kwargs)
     mean = tf.layers.dense(hidden, self._state_size, None)
     stddev = tf.layers.dense(hidden, self._state_size, tf.nn.softplus)
     stddev += self._min_stddev

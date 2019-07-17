@@ -21,6 +21,7 @@ import datetime
 import itertools
 import os
 import pickle
+import six
 import sys
 import threading
 import time
@@ -102,8 +103,9 @@ class Experiment(object):
       except SkipRun:
         continue
       except StopExperiment:
-        tf.logging.info('Stopping.')
+        print('Stopping.')
         break
+    print('All runs completed.')
 
   def _generate_run_numbers(self):
     """Yield run numbers in the order they should be considered.
@@ -206,8 +208,9 @@ class Run(object):
       self._logging.warn('Unexpected takeover.')
       raise SkipRun
     except Exception as e:
+      exc_info = sys.exc_info()
       self._handle_exception(e)
-      raise e
+      six.reraise(*exc_info)
     finally:
       self._running[0] = False
       self._thread and self._thread.join()

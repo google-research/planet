@@ -17,13 +17,10 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
-import functools
-import os
 
 import numpy as np
 
 from planet import control
-from planet import networks
 from planet import tools
 
 
@@ -31,12 +28,22 @@ Task = collections.namedtuple(
     'Task', 'name, env_ctor, max_length, state_components')
 
 
+def dummy(config, params):
+  action_repeat = params.get('action_repeat', 1)
+  max_length = 1000 // action_repeat
+  state_components = ['reward']
+  env_ctor = lambda: control.wrappers.ActionRepeat(
+      control.DummyEnv, action_repeat)
+  return Task('dummy', env_ctor, max_length, state_components)
+
+
 def cartpole_balance(config, params):
   action_repeat = params.get('action_repeat', 8)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'position', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'cartpole', 'balance')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'cartpole', 'balance',
+      params)
   return Task('cartpole_balance', env_ctor, max_length, state_components)
 
 
@@ -44,8 +51,9 @@ def cartpole_swingup(config, params):
   action_repeat = params.get('action_repeat', 8)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'position', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'cartpole', 'swingup')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'cartpole', 'swingup',
+      params)
   return Task('cartpole_swingup', env_ctor, max_length, state_components)
 
 
@@ -53,8 +61,8 @@ def finger_spin(config, params):
   action_repeat = params.get('action_repeat', 2)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'position', 'velocity', 'touch']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'finger', 'spin')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'finger', 'spin', params)
   return Task('finger_spin', env_ctor, max_length, state_components)
 
 
@@ -62,17 +70,18 @@ def cheetah_run(config, params):
   action_repeat = params.get('action_repeat', 4)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'position', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'cheetah', 'run')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'cheetah', 'run', params)
   return Task('cheetah_run', env_ctor, max_length, state_components)
 
 
 def cup_catch(config, params):
-  action_repeat = params.get('action_repeat', 6)
+  action_repeat = params.get('action_repeat', 4)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'position', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'ball_in_cup', 'catch')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'ball_in_cup', 'catch',
+      params)
   return Task('cup_catch', env_ctor, max_length, state_components)
 
 
@@ -80,46 +89,57 @@ def walker_walk(config, params):
   action_repeat = params.get('action_repeat', 2)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'height', 'orientations', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'walker', 'walk')
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'walker', 'walk', params)
   return Task('walker_walk', env_ctor, max_length, state_components)
 
 
-def humanoid_walk(config, params):
-  action_repeat = params.get('action_repeat', 2)
+def reacher_easy(config, params):
+  action_repeat = params.get('action_repeat', 4)
   max_length = 1000 // action_repeat
-  state_components = [
-      'reward', 'com_velocity', 'extremities', 'head_height', 'joint_angles',
-      'torso_vertical', 'velocity']
-  env_ctor = functools.partial(
-      _dm_control_env, action_repeat, max_length, 'humanoid', 'walk')
-  return Task('humanoid_walk', env_ctor, max_length, state_components)
+  state_components = ['reward', 'position', 'velocity', 'to_target']
+  env_ctor = tools.bind(
+      _dm_control_env, action_repeat, max_length, 'reacher', 'easy', params)
+  return Task('reacher_easy', env_ctor, max_length, state_components)
 
 
 def gym_cheetah(config, params):
-  action_repeat = params.get('action_repeat', 2)
+  # Works with `isolate_envs: process`.
+  action_repeat = params.get('action_repeat', 1)
   max_length = 1000 // action_repeat
   state_components = ['reward', 'state']
-  env_ctor = functools.partial(
+  env_ctor = tools.bind(
       _gym_env, action_repeat, config.batch_shape[1], max_length,
       'HalfCheetah-v3')
   return Task('gym_cheetah', env_ctor, max_length, state_components)
 
 
 def gym_racecar(config, params):
-  action_repeat = params.get('action_repeat', 2)
+  # Works with `isolate_envs: thread`.
+  action_repeat = params.get('action_repeat', 1)
   max_length = 1000 // action_repeat
   state_components = ['reward']
-  env_ctor = functools.partial(
+  env_ctor = tools.bind(
       _gym_env, action_repeat, config.batch_shape[1], max_length,
       'CarRacing-v0', obs_is_image=True)
   return Task('gym_racing', env_ctor, max_length, state_components)
 
 
-def _dm_control_env(action_repeat, max_length, domain, task):
-  from dm_control import suite
-  env = control.wrappers.DeepMindWrapper(suite.load(domain, task), (64, 64))
+def _dm_control_env(
+    action_repeat, max_length, domain, task, params, normalize=False,
+    camera_id=None):
+  if isinstance(domain, str):
+    from dm_control import suite
+    env = suite.load(domain, task)
+  else:
+    assert task is None
+    env = domain()
+  if camera_id is None:
+    camera_id = int(params.get('camera_id', 0))
+  env = control.wrappers.DeepMindWrapper(env, (64, 64), camera_id=camera_id)
   env = control.wrappers.ActionRepeat(env, action_repeat)
+  if normalize:
+    env = control.wrappers.NormalizeActions(env)
   env = control.wrappers.MaximumDuration(env, max_length)
   env = control.wrappers.PixelObservations(env, (64, 64), np.uint8, 'image')
   env = control.wrappers.ConvertTo32Bit(env)

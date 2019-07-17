@@ -32,10 +32,11 @@ from planet.tools import streaming_mean
 
 def simulate(
     step, env_ctor, duration, num_agents, agent_config,
-    isolate_envs='none', expensive_summaries=False, name='simulate'):
+    isolate_envs='none', expensive_summaries=False,
+    gif_summary=True, name='simulate'):
   summaries = []
   with tf.variable_scope(name):
-    return_, image, action, reward = collect_rollouts(
+    return_, image, action, reward, cleanup = collect_rollouts(
         step=step,
         env_ctor=env_ctor,
         duration=duration,
@@ -50,16 +51,18 @@ def simulate(
       summaries.append(tf.summary.histogram('action_hist', action))
       summaries.append(tools.image_strip_summary(
           'image', image, max_length=duration))
+    if gif_summary:
       summaries.append(tools.gif_summary(
           'animation', image, max_outputs=1, fps=20))
   summary = tf.summary.merge(summaries)
-  return summary, return_mean
+  return summary, return_mean, cleanup
 
 
 def collect_rollouts(
     step, env_ctor, duration, num_agents, agent_config, isolate_envs):
   batch_env = define_batch_env(env_ctor, num_agents, isolate_envs)
   agent = mpc_agent.MPCAgent(batch_env, step, False, False, agent_config)
+  cleanup = lambda: batch_env.close()
 
   def simulate_fn(unused_last, step):
     done, score, unused_summary = simulate_step(
@@ -85,7 +88,7 @@ def collect_rollouts(
   image = tf.transpose(image, [1, 0, 2, 3, 4])
   action = tf.transpose(action, [1, 0, 2])
   reward = tf.transpose(reward)
-  return score, image, action, reward
+  return score, image, action, reward, cleanup
 
 
 def define_batch_env(env_ctor, num_agents, isolate_envs):

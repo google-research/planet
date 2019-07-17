@@ -18,7 +18,6 @@ from __future__ import print_function
 
 import collections
 import os
-import re
 
 import tensorflow as tf
 
@@ -143,7 +142,7 @@ class Trainer(object):
     if not score.shape.ndims:
       score = score[None]
     writer = self._logdir and tf.summary.FileWriter(
-        os.path.join(self._logdir, name + (self._config.task_suffix or '')),
+        os.path.join(self._logdir, name),
         tf.get_default_graph(), flush_secs=30)
     op = self._define_step(name, batch_size, score, summary)
     self._phases.append(_Phase(

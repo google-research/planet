@@ -16,17 +16,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from tensorflow_probability import distributions as tfd
 import tensorflow as tf
 
-from planet.control import discounted_return
 from planet import tools
 
 
 def cross_entropy_method(
-    cell, objective_fn, state, obs_shape, action_shape, horizon,
-    amount=1000, topk=100, iterations=10, discount=0.99,
-    min_action=-1, max_action=1):
+    cell, objective_fn, state, obs_shape, action_shape, horizon, graph,
+    amount=1000, topk=100, iterations=10, min_action=-1, max_action=1):
   obs_shape, action_shape = tuple(obs_shape), tuple(action_shape)
   original_batch = tools.shape(tools.nested.flatten(state)[0])[0]
   initial_state = tools.nested.map(lambda tensor: tf.tile(
@@ -34,7 +31,6 @@ def cross_entropy_method(
   extended_batch = tools.shape(tools.nested.flatten(initial_state)[0])[0]
   use_obs = tf.zeros([extended_batch, horizon, 1], tf.bool)
   obs = tf.zeros((extended_batch, horizon) + obs_shape)
-  length = tf.ones([extended_batch], dtype=tf.int32) * horizon
 
   def iteration(mean_and_stddev, _):
     mean, stddev = mean_and_stddev
@@ -47,9 +43,7 @@ def cross_entropy_method(
         action, (extended_batch, horizon) + action_shape)
     (_, state), _ = tf.nn.dynamic_rnn(
         cell, (0 * obs, action, use_obs), initial_state=initial_state)
-    reward = objective_fn(state)
-    return_ = discounted_return.discounted_return(
-        reward, length, discount)[:, 0]
+    return_ = objective_fn(state)
     return_ = tf.reshape(return_, (original_batch, amount))
     # Re-fit belief to the best ones.
     _, indices = tf.nn.top_k(return_, topk, sorted=False)
@@ -61,6 +55,8 @@ def cross_entropy_method(
 
   mean = tf.zeros((original_batch, horizon) + action_shape)
   stddev = tf.ones((original_batch, horizon) + action_shape)
+  if iterations < 1:
+    return mean
   mean, stddev = tf.scan(
       iteration, tf.range(iterations), (mean, stddev), back_prop=False)
   mean, stddev = mean[-1], stddev[-1]  # Select belief at last iterations.

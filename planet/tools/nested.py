@@ -16,7 +16,6 @@
 
 from __future__ import absolute_import
 from __future__ import division
-from __future__ import print_function
 
 _builtin_zip = zip
 _builtin_map = map
@@ -107,16 +106,15 @@ def flatten_(structure):
     Flat tuple.
   """
   if isinstance(structure, dict):
-    if structure:
-      structure = zip(*sorted(structure.items(), key=lambda x: x[0]))[1]
-    else:
-      # Zip doesn't work on an the items of an empty dictionary.
-      structure = ()
+    result = ()
+    for key in sorted(list(structure.keys())):
+        result += flatten_(structure[key])
+    return result
   if isinstance(structure, (tuple, list)):
-    result = []
+    result = ()
     for element in structure:
       result += flatten_(element)
-    return tuple(result)
+    return result
   return (structure,)
 
 
