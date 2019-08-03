@@ -137,7 +137,8 @@ def _model_components(config, params):
         params.get('model_layers', 1))
   elif params.model == 'drnn':
     config.cell = tools.bind(
-        models.DRNN, state_size, size, size, params.mean_only,
+        models.DRNN, state_size, size, size,
+        params.get('mean_only', False),
         params.get('min_stddev', 1e-1), config.activation,
         params.get('drnn_encoder_to_decoder', False),
         params.get('drnn_sample_to_sample', True),
