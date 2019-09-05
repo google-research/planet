@@ -34,48 +34,48 @@ import tensorflow as tf
 from planet.tools import nested
 
 
-class ObservationDict(object):
-
-  def __init__(self, env, key='observ'):
-    self._env = env
-    self._key = key
+class Wrapper(gym.Wrapper):
 
   def __getattr__(self, name):
-    return getattr(self._env, name)
+    return getattr(self.env, name)
+
+
+class ObservationDict(Wrapper):
+
+  def __init__(self, env, key='observ'):
+    super().__init__(env)
+    self._key = key
 
   @property
   def observation_space(self):
-    spaces = {self._key: self._env.observation_space}
+    spaces = {self._key: self.env.observation_space}
     return gym.spaces.Dict(spaces)
 
   @property
   def action_space(self):
-    return self._env.action_space
+    return self.env.action_space
 
   def step(self, action):
-    obs, reward, done, info = self._env.step(action)
+    obs, reward, done, info = self.env.step(action)
     obs = {self._key: np.array(obs)}
     return obs, reward, done, info
 
   def reset(self):
-    obs = self._env.reset()
+    obs = self.env.reset()
     obs = {self._key: np.array(obs)}
     return obs
 
 
-class ConcatObservation(object):
+class ConcatObservation(Wrapper):
   """Select observations from a dict space and concatenate them."""
 
   def __init__(self, env, keys):
-    self._env = env
+    super().__init__(env)
     self._keys = keys
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
-    spaces = self._env.observation_space.spaces
+    spaces = self.env.observation_space.spaces
     spaces = [spaces[key] for key in self._keys]
     low = np.concatenate([space.low for space in spaces], 0)
     high = np.concatenate([space.high for space in spaces], 0)
@@ -86,12 +86,12 @@ class ConcatObservation(object):
     return gym.spaces.Box(low, high, dtype=dtypes[0])
 
   def step(self, action):
-    obs, reward, done, info = self._env.step(action)
+    obs, reward, done, info = self.env.step(action)
     obs = self._select_keys(obs)
     return obs, reward, done, info
 
   def reset(self):
-    obs = self._env.reset()
+    obs = self.env.reset()
     obs = self._select_keys(obs)
     return obs
 
@@ -99,72 +99,66 @@ class ConcatObservation(object):
     return np.concatenate([obs[key] for key in self._keys], 0)
 
 
-class SelectObservations(object):
+class SelectObservations(Wrapper):
 
   def __init__(self, env, keys):
-    self._env = env
+    super().__init__(env)
     self._keys = keys
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
-    spaces = self._env.observation_space.spaces
+    spaces = self.env.observation_space.spaces
     return gym.spaces.Dict({key: spaces[key] for key in self._keys})
 
   @property
   def action_space(self):
-    return self._env.action_space
+    return self.env.action_space
 
   def step(self, action, *args, **kwargs):
-    obs, reward, done, info = self._env.step(action, *args, **kwargs)
+    obs, reward, done, info = self.env.step(action, *args, **kwargs)
     obs = {key: obs[key] for key in self._keys}
     return obs, reward, done, info
 
   def reset(self, *args, **kwargs):
-    obs = self._env.reset(*args, **kwargs)
+    obs = self.env.reset(*args, **kwargs)
     obs = {key: obs[key] for key in self._keys}
     return obs
 
 
-class PixelObservations(object):
+class PixelObservations(Wrapper):
 
   def __init__(self, env, size=(64, 64), dtype=np.uint8, key='image'):
     assert isinstance(env.observation_space, gym.spaces.Dict)
-    self._env = env
+    super().__init__(env)
     self._size = size
     self._dtype = dtype
     self._key = key
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
     high = {np.uint8: 255, np.float: 1.0}[self._dtype]
     image = gym.spaces.Box(0, high, self._size + (3,), dtype=self._dtype)
-    spaces = self._env.observation_space.spaces.copy()
+    spaces = self.env.observation_space.spaces.copy()
     assert self._key not in spaces
     spaces[self._key] = image
     return gym.spaces.Dict(spaces)
 
   @property
   def action_space(self):
-    return self._env.action_space
+    return self.env.action_space
 
   def step(self, action):
-    obs, reward, done, info = self._env.step(action)
+    obs, reward, done, info = self.env.step(action)
     obs[self._key] = self._render_image()
     return obs, reward, done, info
 
   def reset(self):
-    obs = self._env.reset()
+    obs = self.env.reset()
     obs[self._key] = self._render_image()
     return obs
 
   def _render_image(self):
-    image = self._env.render('rgb_array')
+    image = self.env.render('rgb_array')
     if image.shape[:2] != self._size:
       kwargs = dict(
           output_shape=self._size, mode='edge', order=1, preserve_range=True)
@@ -180,27 +174,24 @@ class PixelObservations(object):
     return image
 
 
-class ObservationToRender(object):
+class ObservationToRender(Wrapper):
 
   def __init__(self, env, key='image'):
-    self._env = env
+    super().__init__(env)
     self._key = key
     self._image = None
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
     return gym.spaces.Dict({})
 
   def step(self, action):
-    obs, reward, done, info = self._env.step(action)
+    obs, reward, done, info = self.env.step(action)
     self._image = obs.pop(self._key)
     return obs, reward, done, info
 
   def reset(self):
-    obs = self._env.reset()
+    obs = self.env.reset()
     self._image = obs.pop(self._key)
     return obs
 
@@ -208,95 +199,83 @@ class ObservationToRender(object):
     return self._image
 
 
-class OverwriteRender(object):
+class OverwriteRender(Wrapper):
 
   def __init__(self, env, render_fn):
-    self._env = env
+    super().__init__(env)
     self._render_fn = render_fn
-    self._env.render('rgb_array')  # Set up viewer.
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
+    self.env.render('rgb_array')  # Set up viewer.
 
   def render(self, *args, **kwargs):
-    return self._render_fn(self._env, *args, **kwargs)
+    return self._render_fn(self.env, *args, **kwargs)
 
 
-class ActionRepeat(object):
+class ActionRepeat(Wrapper):
   """Repeat the agent action multiple steps."""
 
   def __init__(self, env, amount):
-    self._env = env
+    super().__init__(env)
     self._amount = amount
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   def step(self, action):
     done = False
     total_reward = 0
     current_step = 0
     while current_step < self._amount and not done:
-      observ, reward, done, info = self._env.step(action)
+      observ, reward, done, info = self.env.step(action)
       total_reward += reward
       current_step += 1
     return observ, total_reward, done, info
 
 
-class NormalizeActions(object):
+class NormalizeActions(Wrapper):
 
   def __init__(self, env):
-    self._env = env
+    super().__init__(env)
     low, high = env.action_space.low, env.action_space.high
     self._enabled = np.logical_and(np.isfinite(low), np.isfinite(high))
     self._low = np.where(self._enabled, low, -np.ones_like(low))
     self._high = np.where(self._enabled, high, np.ones_like(low))
 
-  def __getattr__(self, name):
-    return getattr(self._env, name)
-
   @property
   def action_space(self):
-    space = self._env.action_space
+    space = self.env.action_space
     low = np.where(self._enabled, -np.ones_like(space.low), space.low)
     high = np.where(self._enabled, np.ones_like(space.high), space.high)
     return gym.spaces.Box(low, high, dtype=space.dtype)
 
   def step(self, action):
     action = (action + 1) / 2 * (self._high - self._low) + self._low
-    return self._env.step(action)
+    return self.env.step(action)
 
 
-class DeepMindWrapper(object):
+class DeepMindWrapper(Wrapper):
   """Wraps a DM Control environment into a Gym interface."""
 
   metadata = {'render.modes': ['rgb_array']}
   reward_range = (-np.inf, np.inf)
 
   def __init__(self, env, render_size=(64, 64), camera_id=0):
-    self._env = env
+    super().__init__(env)
     self._render_size = render_size
     self._camera_id = camera_id
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
     components = {}
-    for key, value in self._env.observation_spec().items():
+    for key, value in self.env.observation_spec().items():
       components[key] = gym.spaces.Box(
           -np.inf, np.inf, value.shape, dtype=np.float32)
     return gym.spaces.Dict(components)
 
   @property
   def action_space(self):
-    action_spec = self._env.action_spec()
+    action_spec = self.env.action_spec()
     return gym.spaces.Box(
         action_spec.minimum, action_spec.maximum, dtype=np.float32)
 
   def step(self, action):
-    time_step = self._env.step(action)
+    time_step = self.env.step(action)
     obs = dict(time_step.observation)
     reward = time_step.reward or 0
     done = time_step.last()
@@ -304,7 +283,7 @@ class DeepMindWrapper(object):
     return obs, reward, done, info
 
   def reset(self):
-    time_step = self._env.reset()
+    time_step = self.env.reset()
     return dict(time_step.observation)
 
   def render(self, *args, **kwargs):
@@ -312,25 +291,22 @@ class DeepMindWrapper(object):
       raise ValueError("Only render mode 'rgb_array' is supported.")
     del args  # Unused
     del kwargs  # Unused
-    return self._env.physics.render(
+    return self.env.physics.render(
         *self._render_size, camera_id=self._camera_id)
 
 
-class MaximumDuration(object):
+class MaximumDuration(Wrapper):
   """Limits the episode to a given upper number of decision points."""
 
   def __init__(self, env, duration):
-    self._env = env
+    super().__init__(env)
     self._duration = duration
     self._step = None
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   def step(self, action):
     if self._step is None:
       raise RuntimeError('Must reset environment.')
-    observ, reward, done, info = self._env.step(action)
+    observ, reward, done, info = self.env.step(action)
     self._step += 1
     if self._step >= self._duration:
       done = True
@@ -339,22 +315,19 @@ class MaximumDuration(object):
 
   def reset(self):
     self._step = 0
-    return self._env.reset()
+    return self.env.reset()
 
 
-class MinimumDuration(object):
+class MinimumDuration(Wrapper):
   """Extends the episode to a given lower number of decision points."""
 
   def __init__(self, env, duration):
-    self._env = env
+    super().__init__(env)
     self._duration = duration
     self._step = None
 
-  def __getattr__(self, name):
-    return getattr(self._env, name)
-
   def step(self, action):
-    observ, reward, done, info = self._env.step(action)
+    observ, reward, done, info = self.env.step(action)
     self._step += 1
     if self._step < self._duration:
       done = False
@@ -362,17 +335,14 @@ class MinimumDuration(object):
 
   def reset(self):
     self._step = 0
-    return self._env.reset()
+    return self.env.reset()
 
 
-class ProcessObservation(object):
+class ProcessObservation(Wrapper):
 
   def __init__(self, env, process_fn):
-    self._env = env
+    super().__init__(env)
     self._process_fn = process_fn
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
 
   @property
   def observation_space(self):
@@ -381,40 +351,40 @@ class ProcessObservation(object):
             self._process_fn(box.low),
             self._process_fn(box.high),
             dtype=self._process_fn(box.low).dtype),
-        self._env.observation_space)
+        self.env.observation_space)
 
   def step(self, action):
-    observ, reward, done, info = self._env.step(action)
+    observ, reward, done, info = self.env.step(action)
     observ = self._process_fn(observ)
     return observ, reward, done, info
 
   def reset(self):
-    observ = self._env.reset()
+    observ = self.env.reset()
     observ = self._process_fn(observ)
     return observ
 
 
-class PadActions(object):
+class PadActions(Wrapper):
   """Pad action space to the largest action space."""
 
   def __init__(self, env, spaces):
-    self._env = env
+    super().__init__(env)
     self._action_space = self._pad_box_space(spaces)
 
   @property
   def observation_space(self):
-    return self._env.observation_space
+    return self.env.observation_space
 
   @property
   def action_space(self):
     return self._action_space
 
   def step(self, action, *args, **kwargs):
-    action = action[:len(self._env.action_space.low)]
-    return self._env.step(action, *args, **kwargs)
+    action = action[:len(self.env.action_space.low)]
+    return self.env.step(action, *args, **kwargs)
 
   def reset(self, *args, **kwargs):
-    return self._env.reset(*args, **kwargs)
+    return self.env.reset(*args, **kwargs)
 
   def _pad_box_space(self, spaces):
     assert all(len(space.low.shape) == 1 for space in spaces)
@@ -426,7 +396,7 @@ class PadActions(object):
     return gym.spaces.Box(low, high, dtype=np.float32)
 
 
-class CollectGymDataset(object):
+class CollectGymDataset(Wrapper):
   """Collect transition tuples and store episodes as Numpy files.
 
   The time indices of the collected epiosde use the convention that at each
@@ -443,27 +413,24 @@ class CollectGymDataset(object):
   """
 
   def __init__(self, env, outdir):
-    self._env = env
+    super().__init__(env)
     self._outdir = outdir and os.path.expanduser(outdir)
     self._episode = None
 
-  def __getattr__(self, name):
-    return getattr(self._env, name)
-
   def step(self, action, *args, **kwargs):
     if kwargs.get('blocking', True):
-      transition = self._env.step(action, *args, **kwargs)
+      transition = self.env.step(action, *args, **kwargs)
       return self._process_step(action, *transition)
     else:
-      future = self._env.step(action, *args, **kwargs)
+      future = self.env.step(action, *args, **kwargs)
       return lambda: self._process_step(action, *future())
 
   def reset(self, *args, **kwargs):
     if kwargs.get('blocking', True):
-      observ = self._env.reset(*args, **kwargs)
+      observ = self.env.reset(*args, **kwargs)
       return self._process_reset(observ)
     else:
-      future = self._env.reset(*args, **kwargs)
+      future = self.env.reset(*args, **kwargs)
       return lambda: self._process_reset(future())
 
   def _process_step(self, action, observ, reward, done, info):
@@ -522,23 +489,17 @@ class CollectGymDataset(object):
     print('Recorded episode {} to {}.'.format(name, folder))
 
 
-class ConvertTo32Bit(object):
+class ConvertTo32Bit(Wrapper):
   """Convert data types of an OpenAI Gym environment to 32 bit."""
 
-  def __init__(self, env):
-    self._env = env
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
-
   def step(self, action):
-    observ, reward, done, info = self._env.step(action)
+    observ, reward, done, info = self.env.step(action)
     observ = nested.map(self._convert_observ, observ)
     reward = self._convert_reward(reward)
     return observ, reward, done, info
 
   def reset(self):
-    observ = self._env.reset()
+    observ = self.env.reset()
     observ = nested.map(self._convert_observ, observ)
     return observ
 
@@ -557,7 +518,7 @@ class ConvertTo32Bit(object):
     return np.array(reward, dtype=np.float32)
 
 
-class Async(object):
+class Async:
   """Step environment in a separate process for lock free paralellism."""
 
   # Message types for communication via the pipe.
