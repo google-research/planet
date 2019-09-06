@@ -36,6 +36,12 @@ from planet.tools import nested
 
 class Wrapper(gym.Wrapper):
 
+  def step(self, action):
+    return self.env.step(action)
+
+  def reset(self, **kwargs):
+    return self.env.reset(**kwargs)
+
   def __getattr__(self, name):
     return getattr(self.env, name)
 
@@ -45,15 +51,7 @@ class ObservationDict(Wrapper):
   def __init__(self, env, key='observ'):
     super().__init__(env)
     self._key = key
-
-  @property
-  def observation_space(self):
-    spaces = {self._key: self.env.observation_space}
-    return gym.spaces.Dict(spaces)
-
-  @property
-  def action_space(self):
-    return self.env.action_space
+    self.observation_space = gym.spaces.Dict({self._key: self.env.observation_space})
 
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
@@ -72,9 +70,9 @@ class ConcatObservation(Wrapper):
   def __init__(self, env, keys):
     super().__init__(env)
     self._keys = keys
+    self.observation_space = self._get_observation_space()
 
-  @property
-  def observation_space(self):
+  def _get_observation_space(self):
     spaces = self.env.observation_space.spaces
     spaces = [spaces[key] for key in self._keys]
     low = np.concatenate([space.low for space in spaces], 0)
@@ -104,15 +102,8 @@ class SelectObservations(Wrapper):
   def __init__(self, env, keys):
     super().__init__(env)
     self._keys = keys
-
-  @property
-  def observation_space(self):
-    spaces = self.env.observation_space.spaces
-    return gym.spaces.Dict({key: spaces[key] for key in self._keys})
-
-  @property
-  def action_space(self):
-    return self.env.action_space
+    self.observation_space = gym.spaces.Dict(
+        {key: self.env.observation_space.spaces[key] for key in self._keys})
 
   def step(self, action, *args, **kwargs):
     obs, reward, done, info = self.env.step(action, *args, **kwargs)
@@ -133,19 +124,15 @@ class PixelObservations(Wrapper):
     self._size = size
     self._dtype = dtype
     self._key = key
+    self.observation_space = self._get_observation_space()
 
-  @property
-  def observation_space(self):
+  def _get_observation_space(self):
     high = {np.uint8: 255, np.float: 1.0}[self._dtype]
     image = gym.spaces.Box(0, high, self._size + (3,), dtype=self._dtype)
     spaces = self.env.observation_space.spaces.copy()
     assert self._key not in spaces
     spaces[self._key] = image
     return gym.spaces.Dict(spaces)
-
-  @property
-  def action_space(self):
-    return self.env.action_space
 
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
@@ -180,10 +167,7 @@ class ObservationToRender(Wrapper):
     super().__init__(env)
     self._key = key
     self._image = None
-
-  @property
-  def observation_space(self):
-    return gym.spaces.Dict({})
+    self.observation_space = gym.spaces.Dict({})
 
   def step(self, action):
     obs, reward, done, info = self.env.step(action)
@@ -236,9 +220,9 @@ class NormalizeActions(Wrapper):
     self._enabled = np.logical_and(np.isfinite(low), np.isfinite(high))
     self._low = np.where(self._enabled, low, -np.ones_like(low))
     self._high = np.where(self._enabled, high, np.ones_like(low))
+    self.action_space = self._get_action_space()
 
-  @property
-  def action_space(self):
+  def _get_action_space(self):
     space = self.env.action_space
     low = np.where(self._enabled, -np.ones_like(space.low), space.low)
     high = np.where(self._enabled, np.ones_like(space.high), space.high)
@@ -259,17 +243,17 @@ class DeepMindWrapper(Wrapper):
     super().__init__(env)
     self._render_size = render_size
     self._camera_id = camera_id
+    self.observation_space = self._get_observation_space()
+    self.action_space = self._get_action_space()
 
-  @property
-  def observation_space(self):
+  def _get_observation_space(self):
     components = {}
     for key, value in self.env.observation_spec().items():
       components[key] = gym.spaces.Box(
           -np.inf, np.inf, value.shape, dtype=np.float32)
     return gym.spaces.Dict(components)
 
-  @property
-  def action_space(self):
+  def _get_action_space(self):
     action_spec = self.env.action_spec()
     return gym.spaces.Box(
         action_spec.minimum, action_spec.maximum, dtype=np.float32)
@@ -343,10 +327,7 @@ class ProcessObservation(Wrapper):
   def __init__(self, env, process_fn):
     super().__init__(env)
     self._process_fn = process_fn
-
-  @property
-  def observation_space(self):
-    return nested.map(
+    self.observation_space = nested.map(
         lambda box: gym.spaces.Box(
             self._process_fn(box.low),
             self._process_fn(box.high),
@@ -369,15 +350,7 @@ class PadActions(Wrapper):
 
   def __init__(self, env, spaces):
     super().__init__(env)
-    self._action_space = self._pad_box_space(spaces)
-
-  @property
-  def observation_space(self):
-    return self.env.observation_space
-
-  @property
-  def action_space(self):
-    return self._action_space
+    self.action_space = self._pad_box_space(spaces)
 
   def step(self, action, *args, **kwargs):
     action = action[:len(self.env.action_space.low)]
