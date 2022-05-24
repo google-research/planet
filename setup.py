@@ -36,7 +36,7 @@ setuptools.setup(
         'ruamel.yaml',
         'scikit-image',
         'scipy',
-        'tensorflow-gpu==1.13.1',
+        'tensorflow-gpu==2.6.4',
         'tensorflow_probability==0.6.0',
     ],
     packages=setuptools.find_packages(),
